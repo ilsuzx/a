@@ -209,6 +209,7 @@ h1{font-size:30px}
 <section class="page about" id="page-about">
   <div class="head"><h1>소개</h1><button class="btn secondary" id="edit-profile">소개 수정</button></div>
   <p id="about-text"></p>
+  <div class="backup" id="uid-box"><h2>내 고유 ID</h2><div id="uid-body"></div></div>
   <div class="backup"><h2>백업과 복원</h2><p>데이터는 이 브라우저에만 저장돼요. 파일로 내보내 두면 기기를 바꾸거나 캐시를 지워도 복원할 수 있어요.</p><div class="backup-actions"><button class="btn" id="export-btn">내보내기</button><button class="btn secondary" id="import-merge">가져오기 (합치기)</button><button class="btn secondary" id="import-replace">가져오기 (덮어쓰기)</button></div><input type="file" id="import-file" accept=".json,application/json" style="display:none"></div>
 </section>
 </div>
@@ -1633,16 +1634,30 @@ async function upload(){
   await sb('/rest/v1/user_songs?user_id=eq.'+s.user.id,{method:'DELETE',auth:true});
   for(let i=0;i<rows.length;i+=200)await sb('/rest/v1/user_songs',{method:'POST',auth:true,headers:{Prefer:'return=minimal'},body:rows.slice(i,i+200)});
 }
+function copyId(id){
+  const fail=()=>toast('복사하지 못했어요. ID를 길게 눌러 선택해 주세요.');
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(id).then(()=>toast('ID를 복사했어요.'),fail);
+  else fail();
+}
 function showId(){
-  const el=$('#cf-id');if(!el)return;
   const id=ses&&ses.user&&ses.user.id;
-  if(!id||!st.consent){el.innerHTML='';return}
-  el.innerHTML='내 ID: <code id="cf-id-val" style="user-select:all">'+id+'</code> <button class="link" id="cf-id-copy" style="margin-left:6px">복사</button>';
-  $('#cf-id-copy').onclick=()=>{
-    const done=()=>toast('ID를 복사했어요.');
-    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(id).then(done,()=>toast('복사하지 못했어요. ID를 길게 눌러 선택해 주세요.'));
-    else toast('복사하지 못했어요. ID를 길게 눌러 선택해 주세요.');
-  };
+  const el=$('#cf-id');
+  if(el){
+    if(!id||!st.consent)el.innerHTML='';
+    else{
+      el.innerHTML='내 ID: <code style="user-select:all">'+id+'</code> <button class="link" id="cf-id-copy" style="margin-left:6px">복사</button>';
+      $('#cf-id-copy').onclick=()=>copyId(id);
+    }
+  }
+  const box=$('#uid-body');
+  if(box){
+    if(id){
+      box.innerHTML='<p>이 브라우저에서 쓰는 익명 ID예요. 서버에 올린 내 곡 목록은 이 ID에만 연결돼요. 다른 기기나 시크릿 창에서는 다른 ID가 만들어져요.</p><div class="toolbar"><code style="user-select:all;word-break:break-all;flex:1;min-width:0">'+id+'</code><button class="btn secondary small" id="uid-copy">복사</button></div>';
+      $('#uid-copy').onclick=()=>copyId(id);
+    }else{
+      box.innerHTML='<p>아직 ID가 없어요. 홈의 \'다른 사용자들이 좋아한 곡\'에서 참여하고 추천 받기를 누르면 만들어져요.</p>';
+    }
+  }
 }
 function draw(){
   const c=$('#cf-consent'),a=$('#cf-actions');
