@@ -228,7 +228,7 @@ h1{font-size:30px}
 <div class="field"><label>장르</label><input id="f-genre" placeholder="예: 인디 록"></div>
 <div class="field"><label>사운드</label><input id="f-sound" placeholder="예: 기타, 신스"></div><div class="field full" style="display:none"><label>커버 이미지 주소</label><input id="f-cover" type="text"></div>
 </div>
-<div class="api-search" style="margin:18px 0 0"><div class="api-search-head"><strong>곡 분석 정보</strong><small>곡명·아티스트로 인기도·장르 태그·길이를 불러와요. Spotify 링크를 넣으면 BPM·키·무드도 채워져요.</small></div><div class="api-search-line"><input id="f-spotify" placeholder="Spotify 곡 링크 (선택)"><button type="button" class="btn small" id="meta-fetch">정보 불러오기</button></div><div id="meta-box" style="margin-top:12px"></div></div><input type="hidden" id="f-meta">
+<div class="api-search" style="margin:18px 0 0"><div class="api-search-head"><strong>곡 분석 정보</strong><small>곡명·아티스트로 인기도·장르 태그·길이를 불러와요. Spotify 링크를 자동으로 찾아 BPM·키·무드도 채워요. 못 찾으면 링크를 직접 넣으세요.</small></div><div class="api-search-line"><input id="f-spotify" placeholder="Spotify 곡 링크 (비워두면 자동으로 찾아요)"><button type="button" class="btn small" id="meta-fetch">정보 불러오기</button></div><div id="meta-box" style="margin-top:12px"></div></div><input type="hidden" id="f-meta">
 <div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
 <div class="modal-backdrop" id="album-modal"><div class="modal"><div class="modal-head"><h2 id="album-modal-title">앨범 추가</h2><button class="close" data-close>×</button></div><form id="album-form"><input type="hidden" id="album-id">
@@ -1751,11 +1751,11 @@ async function run(){
   const title=$('#f-title').value.trim(),artist=$('#f-artist').value.trim();
   if(!title||!artist){toast('곡명과 아티스트를 먼저 입력해 주세요.');return}
   const btn=$('#meta-fetch');btn.disabled=true;btn.textContent='불러오는 중…';
-  const m=Object.assign({},getMeta()||{});const notes=[];
+  const m=Object.assign({},getMeta()||{});const notes=[];let dzId=null;
   try{
     const s=await dz('https://api.deezer.com/search?q='+encodeURIComponent('artist:"'+artist+'" track:"'+title+'"')+'&limit=1&output=jsonp');
     const hit=s&&s.data&&s.data[0];
-    if(hit){const d=await dz('https://api.deezer.com/track/'+hit.id+'?output=jsonp');
+    if(hit){dzId=hit.id;const d=await dz('https://api.deezer.com/track/'+hit.id+'?output=jsonp');
       if(d&&!d.error){if(d.duration)m.duration=d.duration;m.explicit=!!d.explicit_lyrics;if(d.bpm)m.bpm=Math.round(d.bpm)}}
   }catch(e){}
   try{
@@ -1763,8 +1763,11 @@ async function run(){
     if(tr){const L=Number(tr.listeners)||0;if(L)m.popularity=Math.max(1,Math.min(100,Math.round(Math.log10(L)/6.5*100)));m.tags=names(tr.toptags&&tr.toptags.tag)}
     if(!m.tags||!m.tags.length){const a=await lfm('artist.getTopTags',{artist});m.tags=names(a&&a.toptags&&a.toptags.tag)}
   }catch(e){}
-  const raw=$('#f-spotify').value.trim(),id=sid(raw);
+  let raw=$('#f-spotify').value.trim();
+  if(!raw&&dzId){try{const r=await fetch('https://api.song.link/v1-alpha.1/links?url='+encodeURIComponent('https://www.deezer.com/track/'+dzId));if(r.ok){const j=await r.json();const u=j&&j.linksByPlatform&&j.linksByPlatform.spotify&&j.linksByPlatform.spotify.url;if(u){raw=u;$('#f-spotify').value=u}}}catch(e){}}
+  const id=sid(raw);
   if(raw&&!id)notes.push('Spotify 링크 형식을 확인해 주세요.');
+  else if(!raw)notes.push('Spotify 링크를 자동으로 찾지 못했어요. 링크를 붙여넣으면 BPM·무드가 채워져요.');
   if(id){
     let f=null;
     for(const u of ['https://api.reccobeats.com/v1/audio-features?ids='+id,'https://api.reccobeats.com/v1/track/'+id+'/audio-features']){
