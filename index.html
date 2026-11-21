@@ -1659,13 +1659,37 @@ function showId(){
     }
   }
 }
+let notice=null;
+function closeNotice(){if(notice)notice.classList.remove('open')}
+function openNotice(){
+  if(!notice){
+    notice=document.createElement('div');
+    notice.className='modal-backdrop';notice.id='cf-notice';
+    notice.innerHTML='<div class="modal" role="dialog" aria-modal="true" aria-labelledby="cf-notice-title">'
+      +'<div class="modal-head"><h2 id="cf-notice-title">취향이 비슷한 사용자의 곡 추천</h2></div>'
+      +'<p style="font-size:14px;line-height:1.7;margin:0 0 10px">나와 취향이 비슷한 다른 사용자들이 담은 곡을 추천해 드려요. 이를 위해 아래 내용에 대한 동의가 필요해요.</p>'
+      +'<ul style="margin:0 0 4px 18px;padding:0;font-size:14px;line-height:1.75;color:var(--muted)">'
+      +'<li>추천 받기를 누르면 <b style="color:var(--fg)">곡명 · 아티스트 · 즐겨찾기 여부</b>가 익명 ID로 서버에 저장돼요.</li>'
+      +'<li>감상 메모와 소개글은 올리지 않아요.</li>'
+      +'<li>다른 사용자의 곡 목록은 볼 수 없고, 내 목록도 다른 사람에게 보이지 않아요.</li>'
+      +'<li>홈에서 언제든 참여를 해제하고 서버의 내 데이터를 지울 수 있어요.</li>'
+      +'</ul>'
+      +'<div class="modal-actions"><button class="btn ghost" id="cf-no">나중에</button><button class="btn" id="cf-yes">동의하고 참여</button></div></div>';
+    document.body.appendChild(notice);
+    const later=()=>{st.asked=true;store();closeNotice();toast('홈의 “다른 사용자들이 좋아한 곡”에서 언제든 참여할 수 있어요.')};
+    $('#cf-no').onclick=later;
+    $('#cf-yes').onclick=()=>{st.consent=true;st.asked=true;store();closeNotice();draw();toast('참여했어요. 홈에서 추천 받기를 눌러 보세요.')};
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&notice.classList.contains('open'))later()});
+  }
+  notice.classList.add('open');
+  setTimeout(()=>{const y=$('#cf-yes');if(y)y.focus()},0);
+}
 function draw(){
   const c=$('#cf-consent'),a=$('#cf-actions');
   if(!st.consent){
-    a.innerHTML='';
-    c.innerHTML=`<p class="taste-text" style="margin:0 0 10px;font-size:13px">나와 취향이 비슷한 다른 사용자들이 담은 곡을 추천받아요. 참여하면 <b>곡명 · 아티스트 · 즐겨찾기 여부</b>가 익명 ID로 서버에 저장돼요. 감상 메모와 소개글은 올리지 않고, 다른 사용자의 목록을 직접 볼 수도 없어요. 언제든 해제하고 내 데이터를 지울 수 있어요.</p><label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="cf-agree"> 위 내용에 동의하고 참여할게요</label><button class="btn small" id="cf-join" disabled>참여하기</button>`;
-    $('#cf-agree').onchange=e=>{$('#cf-join').disabled=!e.target.checked};
-    $('#cf-join').onclick=()=>{st.consent=true;store();draw();toast('참여했어요. 추천 받기를 눌러 보세요.')};
+    c.innerHTML='<p class="taste-text" style="margin:0;font-size:13px">나와 취향이 비슷한 사용자들이 담은 곡을 추천받을 수 있어요. 참여하려면 동의가 필요해요.</p>';
+    a.innerHTML='<button class="btn small" id="cf-join">참여하기</button>';
+    $('#cf-join').onclick=openNotice;
   }else{
     c.innerHTML='';
     a.innerHTML='<button class="btn ghost small" id="cf-leave">참여 해제 · 데이터 삭제</button><button class="btn small" id="cf-go">추천 받기</button>';
@@ -1695,6 +1719,7 @@ async function leave(){
   st.consent=false;ses=null;store();$('#cf-results').innerHTML='';draw();toast('참여를 해제하고 데이터를 지웠어요.');
 }
 draw();
+if(!st.consent&&!st.asked)setTimeout(openNotice,600);
 })();
 </script>
 </body>
