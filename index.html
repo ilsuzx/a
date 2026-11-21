@@ -1743,7 +1743,7 @@ function show(m){
   if(!m){box.innerHTML='';return}
   const cells=[['BPM',m.bpm],['키',m.key?m.key+(m.camelot?' · '+m.camelot:''):null],['길이',dur(m.duration)],['행복도',pc(m.happiness)],['댄스',pc(m.danceability)],['에너지',pc(m.energy)],['어쿠스틱',pc(m.acousticness)],['악기 비율',pc(m.instrumentalness)],['라이브',pc(m.liveness)],['말하기',pc(m.speechiness)],['음량',m.loudness!=null?m.loudness.toFixed(1)+' dB':null],['성인 표시',m.explicit?'있음':null]].filter(c=>c[1]!=null&&c[1]!=='');
   const tags=(m.tags||[]).map(t=>'<span>'+esc(t)+'</span>').join('');
-  box.innerHTML=(cells.length?'<div class="meta-grid">'+cells.map(c=>'<div class="meta-cell"><small>'+c[0]+'</small><b>'+esc(String(c[1]))+'</b></div>').join('')+'</div>':'<div class="api-hint">가져온 값이 없어요.</div>')+(tags?'<div class="tag-cloud" style="margin-top:10px">'+tags+'</div>':'')+'<div class="api-hint">무드·BPM은 Spotify와 수치가 조금 다를 수 있어요.</div>';
+  box.innerHTML=(cells.length?'<div class="meta-grid">'+cells.map(c=>'<div class="meta-cell"><small>'+c[0]+'</small><b>'+esc(String(c[1]))+'</b></div>').join('')+'</div>':'')+(tags?'<div class="tag-cloud" style="margin-top:10px">'+tags+'</div>':'');
 }
 const dz=url=>new Promise(r=>jsonp(url,r));
 const names=v=>(Array.isArray(v)?v:(v?[v]:[])).map(x=>x.name).filter(Boolean).slice(0,6);
@@ -1752,7 +1752,7 @@ async function run(){
   if(!title||!artist)return;
   const same=()=>$('#f-title').value.trim()===title&&$('#f-artist').value.trim()===artist;
   $('#f-spotify').value='';
-  $('#meta-box').innerHTML='<div class="api-status">곡 분석 정보를 불러오는 중…</div>';
+  $('#meta-box').innerHTML='';
   const m={};const notes=[];let dzId=null;
   try{
     const s=await dz('https://api.deezer.com/search?q='+encodeURIComponent('artist:"'+artist+'" track:"'+title+'"')+'&limit=1&output=jsonp');
@@ -1784,7 +1784,6 @@ async function run(){
   if(!same())return; // 불러오는 사이 다른 곡으로 바뀌었으면 무시
   if(!$('#f-genre').value.trim()&&m.tags&&m.tags[0])$('#f-genre').value=m.tags[0];
   show(m);
-  if(notes[0])$('#meta-box').insertAdjacentHTML('beforeend','<div class="api-hint">'+esc(notes[0])+'</div>');
 }
 window.autoMeta=run;
 $('#add-song').addEventListener('click',()=>{$('#f-spotify').value='';show(null)});
