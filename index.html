@@ -67,6 +67,8 @@ body.has-mini .wrap{padding-bottom:160px}
 .rec-pager{justify-content:center;align-items:center;gap:14px;padding:8px 0 2px;font-size:13px;color:var(--muted)}.btn:disabled{opacity:.35;cursor:default}
 .rec-play{border:1px solid #ddd;background:#fff;color:var(--fg);border-radius:50%;width:30px;height:30px;font-size:11px;flex-shrink:0;padding:0}.rec-play:hover{border-color:var(--fg)}
 .intro-src{font-size:12px;color:var(--muted);margin-top:2px}.intro-src a{color:inherit}
+
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}.meta-cell{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px}.meta-cell small{display:block;font-size:11px;color:var(--muted)}.meta-cell b{font-size:16px;letter-spacing:-.02em}
 </style>
 <!-- AFTERTONE 갤러리 테마: </head> 바로 앞에 통째로 붙여 넣으세요. 지우면 원래대로 돌아가요. -->
 <style id="aftertone-theme">
@@ -225,7 +227,9 @@ h1{font-size:30px}
 <div class="field"><label>앨범</label><input id="f-album"></div><div class="field"><label>발매 연도</label><input id="f-year" type="number" min="1900" max="2100"></div>
 <div class="field"><label>장르</label><input id="f-genre" placeholder="예: 인디 록"></div>
 <div class="field"><label>사운드</label><input id="f-sound" placeholder="예: 기타, 신스"></div><div class="field full" style="display:none"><label>커버 이미지 주소</label><input id="f-cover" type="text"></div>
-</div><div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
+</div>
+<div class="api-search" style="margin:18px 0 0"><div class="api-search-head"><strong>곡 분석 정보</strong><small>곡명·아티스트로 인기도·장르 태그·길이를 불러와요. Spotify 링크를 넣으면 BPM·키·무드도 채워져요.</small></div><div class="api-search-line"><input id="f-spotify" placeholder="Spotify 곡 링크 (선택)"><button type="button" class="btn small" id="meta-fetch">정보 불러오기</button></div><div id="meta-box" style="margin-top:12px"></div></div><input type="hidden" id="f-meta">
+<div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
 <div class="modal-backdrop" id="album-modal"><div class="modal"><div class="modal-head"><h2 id="album-modal-title">앨범 추가</h2><button class="close" data-close>×</button></div><form id="album-form"><input type="hidden" id="album-id">
 <div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'은 앨범 정보와 커버만 입력하고, '통째로 추가'는 수록곡 전체를 노래로 한 번에 추가해요.</small></div>
@@ -297,7 +301,7 @@ function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-for
 function editAlbum(id){const a=albums.find(x=>x.id===id);if(!a)return;$('#album-form').reset();$('#album-id').value=id;['title','artist','year','genre','cover','note'].forEach(k=>$('#a-'+k).value=a[k]||'');resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 다시 입력됩니다.');$('#album-delete').style.display='';setIntroUI(a);const tr=songs.filter(s=>s.album&&s.album.toLowerCase()===a.title.toLowerCase()&&s.artist.toLowerCase()===a.artist.toLowerCase());$('#album-tracks').innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk"><span>${esc(s.title)}</span>${s.fav?'<b style="color:#ff7a8a">♥</b>':''}${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">▶</button>`:''}</div>`).join(''):'';$('#album-modal-title').textContent='앨범 수정';openModal('album-modal')}
 $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
   if(!id&&songs.some(x=>skey(x)===($('#f-title').value.trim()+'|'+$('#f-artist').value.trim()).toLowerCase())&&!confirm('이미 등록된 곡이에요. 그래도 추가할까요?'))return;
-  const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:id?(songs.find(x=>x.id===id)?.note||''):'',preview:$('#f-preview').value,fav:id?!!songs.find(x=>x.id===id)?.fav:false,created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
+  const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:id?(songs.find(x=>x.id===id)?.note||''):'',preview:$('#f-preview').value,meta:($('#f-meta').value?JSON.parse($('#f-meta').value):undefined),fav:id?!!songs.find(x=>x.id===id)?.fav:false,created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
   if(id)songs=songs.map(x=>x.id===id?s:x);else songs.unshift(s);
   if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))albums.unshift({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:Date.now()});
   save();closeModals();render();toast(id?'곡 정보를 수정했어요.':'새로운 곡을 추가했어요.')};
@@ -314,7 +318,8 @@ function removeSong(id){const i=songs.findIndex(s=>s.id===id);if(i<0)return;cons
     if(ai>=0&&!albums[ai].note&&!songs.some(same)){rm={a:albums[ai],i:ai};albums.splice(ai,1)}}
   save();render();
   undoToast(rm?'곡과 빈 앨범을 삭제했어요.':'곡을 삭제했어요.',()=>{songs.splice(Math.min(i,songs.length),0,s);if(rm)albums.splice(Math.min(rm.i,albums.length),0,rm.a);save();render()})}
-const songRow=s=>`<div class="song-row"><div class="mini-cover">${cover(s.cover)}</div><div class="song-meta"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}${s.album?' · '+esc(s.album):''}</span>${s.note?`<em class="note" title="${esc(s.note)}">“${esc(s.note)}”</em>`:''}</div>${s.genre?`<span class="song-tag">${esc(s.genre)}</span>`:''}<div class="row-actions">${s.preview?`<button class="icon-btn play" title="미리듣기" aria-label="미리듣기" onclick="playSong('${s.id}')">${playingId===s.id&&!player.paused?'❚❚':'▶'}</button>`:''}<button class="icon-btn" title="비슷한 곡" aria-label="비슷한 곡" onclick="showSimilar('${s.id}')">≈</button><button class="icon-btn fav ${s.fav?'on':''}" title="즐겨찾기" aria-label="즐겨찾기" onclick="toggleFav('${s.id}')">${s.fav?'♥':'♡'}</button><button class="icon-btn" title="수정" onclick="editSong('${s.id}')">✎</button><button class="icon-btn" title="삭제" onclick="removeSong('${s.id}')">×</button></div></div>`;
+function metaLine(m){if(!m)return '';const p=[];if(m.bpm)p.push('BPM '+m.bpm);if(m.camelot)p.push(m.camelot);if(m.energy!=null)p.push('에너지 '+Math.round(m.energy*100));if(m.happiness!=null)p.push('행복도 '+Math.round(m.happiness*100));if(m.popularity!=null)p.push('인기도 '+m.popularity);return p.length?`<em class="note">${p.join(' · ')}</em>`:''}
+const songRow=s=>`<div class="song-row"><div class="mini-cover">${cover(s.cover)}</div><div class="song-meta"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}${s.album?' · '+esc(s.album):''}</span>${s.note?`<em class="note" title="${esc(s.note)}">“${esc(s.note)}”</em>`:''}${metaLine(s.meta)}</div>${s.genre?`<span class="song-tag">${esc(s.genre)}</span>`:''}<div class="row-actions">${s.preview?`<button class="icon-btn play" title="미리듣기" aria-label="미리듣기" onclick="playSong('${s.id}')">${playingId===s.id&&!player.paused?'❚❚':'▶'}</button>`:''}<button class="icon-btn" title="비슷한 곡" aria-label="비슷한 곡" onclick="showSimilar('${s.id}')">≈</button><button class="icon-btn fav ${s.fav?'on':''}" title="즐겨찾기" aria-label="즐겨찾기" onclick="toggleFav('${s.id}')">${s.fav?'♥':'♡'}</button><button class="icon-btn" title="수정" onclick="editSong('${s.id}')">✎</button><button class="icon-btn" title="삭제" onclick="removeSong('${s.id}')">×</button></div></div>`;
 const albumCard=a=>`<div class="album-card" onclick="editAlbum('${a.id}')"><div class="cover">${cover(a.cover)}</div><h3>${esc(a.title)}</h3><p>${esc(a.artist)}${a.year?' · '+esc(a.year):''}</p></div>`;
 function dailyIndex(n){const d=new Date().toDateString();let h=0;for(const c of d)h=(h*31+c.charCodeAt(0))>>>0;return h%n}
 function renderHome(){
@@ -1720,6 +1725,67 @@ async function leave(){
 }
 draw();
 if(!st.consent&&!st.asked)setTimeout(openNotice,600);
+})();
+</script>
+<script>
+// ===== 곡 분석 정보: Deezer(길이·성인) + Last.fm(인기도·태그) + ReccoBeats(BPM·키·무드, Spotify 링크 필요) =====
+(()=>{
+const KEYS=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const CAM_MAJ=['8B','3B','10B','5B','12B','7B','2B','9B','4B','11B','6B','1B'];
+const CAM_MIN=['5A','12A','7A','2A','9A','4A','11A','6A','1A','8A','3A','10A'];
+const pc=v=>v==null?null:Math.round(v*100);
+const dur=s=>s?Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0'):null;
+const sid=t=>{t=String(t||'').trim();const m=t.match(/track[\/:]([A-Za-z0-9]{22})/)||t.match(/^([A-Za-z0-9]{22})$/);return m?m[1]:''};
+const getMeta=()=>{try{return JSON.parse($('#f-meta').value||'null')}catch(e){return null}};
+function show(m){
+  const box=$('#meta-box');
+  $('#f-meta').value=m?JSON.stringify(m):'';
+  if(!m){box.innerHTML='<div class="api-hint">정보 불러오기를 누르면 인기도·장르 태그·길이가 채워져요. Spotify 링크를 넣으면 BPM·키·무드도 나와요.</div>';return}
+  const cells=[['BPM',m.bpm],['키',m.key?m.key+(m.camelot?' · '+m.camelot:''):null],['길이',dur(m.duration)],['인기도',m.popularity],['행복도',pc(m.happiness)],['댄스',pc(m.danceability)],['에너지',pc(m.energy)],['어쿠스틱',pc(m.acousticness)],['악기 비율',pc(m.instrumentalness)],['라이브',pc(m.liveness)],['말하기',pc(m.speechiness)],['음량',m.loudness!=null?m.loudness.toFixed(1)+' dB':null],['성인 표시',m.explicit?'있음':null]].filter(c=>c[1]!=null&&c[1]!=='');
+  const tags=(m.tags||[]).map(t=>'<span>'+esc(t)+'</span>').join('');
+  box.innerHTML=(cells.length?'<div class="meta-grid">'+cells.map(c=>'<div class="meta-cell"><small>'+c[0]+'</small><b>'+esc(String(c[1]))+'</b></div>').join('')+'</div>':'<div class="api-hint">가져온 값이 없어요.</div>')+(tags?'<div class="tag-cloud" style="margin-top:10px">'+tags+'</div>':'')+'<div class="api-hint">인기도는 Last.fm 청취자 수 기준 0~100점이에요. 무드·BPM은 Spotify와 수치가 조금 다를 수 있어요.</div>';
+}
+const dz=url=>new Promise(r=>jsonp(url,r));
+const names=v=>(Array.isArray(v)?v:(v?[v]:[])).map(x=>x.name).filter(Boolean).slice(0,6);
+async function run(){
+  const title=$('#f-title').value.trim(),artist=$('#f-artist').value.trim();
+  if(!title||!artist){toast('곡명과 아티스트를 먼저 입력해 주세요.');return}
+  const btn=$('#meta-fetch');btn.disabled=true;btn.textContent='불러오는 중…';
+  const m=Object.assign({},getMeta()||{});const notes=[];
+  try{
+    const s=await dz('https://api.deezer.com/search?q='+encodeURIComponent('artist:"'+artist+'" track:"'+title+'"')+'&limit=1&output=jsonp');
+    const hit=s&&s.data&&s.data[0];
+    if(hit){const d=await dz('https://api.deezer.com/track/'+hit.id+'?output=jsonp');
+      if(d&&!d.error){if(d.duration)m.duration=d.duration;m.explicit=!!d.explicit_lyrics;if(d.bpm)m.bpm=Math.round(d.bpm)}}
+  }catch(e){}
+  try{
+    const t=await lfm('track.getInfo',{artist,track:title});const tr=t&&t.track;
+    if(tr){const L=Number(tr.listeners)||0;if(L)m.popularity=Math.max(1,Math.min(100,Math.round(Math.log10(L)/6.5*100)));m.tags=names(tr.toptags&&tr.toptags.tag)}
+    if(!m.tags||!m.tags.length){const a=await lfm('artist.getTopTags',{artist});m.tags=names(a&&a.toptags&&a.toptags.tag)}
+  }catch(e){}
+  const raw=$('#f-spotify').value.trim(),id=sid(raw);
+  if(raw&&!id)notes.push('Spotify 링크 형식을 확인해 주세요.');
+  if(id){
+    let f=null;
+    for(const u of ['https://api.reccobeats.com/v1/audio-features?ids='+id,'https://api.reccobeats.com/v1/track/'+id+'/audio-features']){
+      try{const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)continue;const j=await r.json();f=(j&&j.content&&j.content[0])||(j&&j.tempo!=null?j:null);if(f)break}catch(e){}
+    }
+    if(f){
+      if(f.tempo)m.bpm=Math.round(f.tempo);
+      m.happiness=f.valence;m.danceability=f.danceability;m.energy=f.energy;m.acousticness=f.acousticness;m.instrumentalness=f.instrumentalness;m.liveness=f.liveness;m.speechiness=f.speechiness;
+      if(typeof f.loudness==='number')m.loudness=f.loudness;
+      if(typeof f.key==='number'&&f.key>=0){m.key=KEYS[f.key]+(f.mode===1?' 메이저':' 마이너');m.camelot=(f.mode===1?CAM_MAJ:CAM_MIN)[f.key]}
+    }else notes.push('BPM·무드 값을 가져오지 못했어요. (ReccoBeats에 없는 곡이거나 연결이 막혔어요)');
+  }
+  if(!$('#f-genre').value.trim()&&m.tags&&m.tags[0])$('#f-genre').value=m.tags[0];
+  show(m);
+  btn.disabled=false;btn.textContent='정보 불러오기';
+  toast(notes[0]||'곡 정보를 불러왔어요. 저장을 눌러야 반영돼요.');
+}
+$('#meta-fetch').onclick=run;
+$('#add-song').addEventListener('click',()=>{$('#f-spotify').value='';show(null)});
+const _edit=editSong;editSong=function(id){_edit(id);const s=songs.find(x=>x.id===id);$('#f-spotify').value='';show(s&&s.meta||null)};
+show(null);
 })();
 </script>
 </body>
