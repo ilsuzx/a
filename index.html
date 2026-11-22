@@ -180,7 +180,7 @@ h1{font-size:30px}
   <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
   <div class="block"><h2>발매 연도</h2><div id="year-chart"></div></div>
   <div class="block"><h2>자주 듣는 아티스트</h2><div id="artist-bars"></div></div>
-    <div class="block"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
+    <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
   <h2 id="taste-headline" style="display:none"></h2>
 </section>
@@ -217,7 +217,7 @@ h1{font-size:30px}
 <div class="field"><label>곡명 *</label><input id="f-title" required></div><div class="field"><label>아티스트 *</label><input id="f-artist" required></div>
 <div class="field"><label>앨범</label><input id="f-album"></div><div class="field"><label>발매 연도</label><input id="f-year" type="number" min="1900" max="2100"></div>
 <div class="field"><label>장르</label><input id="f-genre" placeholder="예: 인디 록"></div>
-<div class="field"><label>사운드</label><input id="f-sound" placeholder="예: 기타, 신스"></div><div class="field full" style="display:none"><label>커버 이미지 주소</label><input id="f-cover" type="text"></div>
+<div class="field" style="display:none"><label>사운드</label><input id="f-sound" placeholder="예: 기타, 신스"></div><div class="field full" style="display:none"><label>커버 이미지 주소</label><input id="f-cover" type="text"></div>
 </div>
 <div id="meta-box" style="margin-top:18px"></div><input type="hidden" id="f-meta"><input type="hidden" id="f-spotify">
 <div class="modal-actions"><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
@@ -251,7 +251,7 @@ h1{font-size:30px}
     <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,text/plain" style="display:none">
   </div>
   <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기 (미리듣기 없는 곡은 제외)</label>
-  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
+  <label style="display:none;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
   <div class="api-status" id="pl-status"></div>
   <div class="modal-actions"><button type="button" class="btn secondary" id="pl-cancel" style="display:none">중단</button><button type="button" class="btn secondary" data-close>닫기</button><button type="button" class="btn" id="pl-run">가져오기</button></div>
 </div></div>
@@ -363,7 +363,7 @@ function renderTaste(){
   $('#sound-tags').innerHTML=sounds.length?sounds.map(x=>`<span>${esc(x[0])}</span>`).join(''):'<span>사운드 특징을 입력해 보세요</span>';
   if(songs.length){const top=genres[0]?.[0]||'다양한 장르',sound=sounds[0]?.[0]||'여러 사운드';
     $('#taste-headline').textContent=`${top} 취향이 가장 많아요.`;
-    $('#taste-copy').textContent=`등록한 ${songs.length}곡 중 ${top} 장르가 가장 많아요. 사운드는 ${sound} 쪽이 눈에 띕니다.`}
+    $('#taste-copy').textContent=`등록한 ${songs.length}곡 중 ${top} 장르가 가장 많아요.`}
   else{$('#taste-headline').textContent='';$('#taste-copy').textContent='노래를 추가하면 여기에 취향이 정리돼요.'}}
 function render(){renderSongs();renderAlbums();renderTaste();renderCharts();renderSkipped();$('#about-text').textContent=profile}
 $('#song-search').addEventListener('input',renderSongs);document.querySelectorAll('#song-scope button').forEach(b=>b.addEventListener('click',()=>{songScope=b.dataset.scope;renderSongs()}));$('#genre-filter').addEventListener('change',renderSongs);$('#album-search').addEventListener('input',renderAlbums);$('#album-sort').addEventListener('change',renderAlbums);
@@ -621,6 +621,7 @@ async function lfm(method,params){
   }catch(e){return new Promise(res=>jsonp(ep,res))}
 }
 async function autoTags(force){
+  return; // 사운드 자동 채우기는 쓰지 않아요
   const title=$('#f-title').value.trim(),artist=$('#f-artist').value.trim();
   if(!title||!artist){if(force)toast('곡명과 아티스트를 먼저 입력해 주세요.');return}
   try{
@@ -1063,7 +1064,7 @@ document.head.appendChild(st);
 document.body.insertAdjacentHTML('beforeend',`
 <div class="modal-backdrop" id="xd-modal"><div class="modal"><div class="modal-head"><h2 id="xd-title"></h2><button class="close" data-xclose>×</button></div><div class="song-list" id="xd-list" style="max-height:62vh;overflow:auto"></div></div></div>
 `);
-document.body.insertAdjacentHTML('beforeend',`<div class="selbar" id="selbar"><span id="sb-count"></span><button id="sb-all">전체 선택</button><button id="sb-genre">장르 변경</button><button id="sb-sound">사운드 변경</button><button id="sb-del" class="del">삭제</button><button id="sb-done">완료</button></div>`);
+document.body.insertAdjacentHTML('beforeend',`<div class="selbar" id="selbar"><span id="sb-count"></span><button id="sb-all">전체 선택</button><button id="sb-genre">장르 변경</button><button id="sb-sound" style="display:none">사운드 변경</button><button id="sb-del" class="del">삭제</button><button id="sb-done">완료</button></div>`);
 $('#song-list').closest('section').querySelector('.fbar').insertAdjacentHTML('beforeend',
  '<button type="button" class="btn secondary small" id="sel-toggle">선택</button>');
 document.querySelectorAll('[data-xclose]').forEach(b=>b.onclick=closeModals);
@@ -1885,13 +1886,17 @@ show(null);
 .tt-row .mini-cover{width:40px;height:40px}
 .daily-sec{font-size:12px;font-weight:600;color:var(--muted);padding:12px 2px 6px;letter-spacing:.03em}
 #daily-modal .seg{display:inline-flex;margin-bottom:12px}
+#daily-results .dpager{display:flex;align-items:center;justify-content:center;gap:14px;padding:10px 0 2px;font-size:13px;color:var(--muted)}
+#daily-results .dpager button{border:0;background:none;font-size:20px;line-height:1;padding:4px 12px;color:var(--fg);border-radius:6px}
+#daily-results .dpager button:hover:not(:disabled){background:var(--soft)}
+#daily-results .dpager button:disabled{opacity:.3;cursor:default}
 #daily-suggest{border:1px solid var(--line);border-radius:10px;margin-top:6px;background:#fff;overflow:hidden}
 #daily-suggest button{display:flex;align-items:baseline;gap:8px;width:100%;border:0;background:none;text-align:left;padding:10px 12px;font-size:14px;color:var(--fg);white-space:nowrap;overflow:hidden}
 #daily-suggest button+button{border-top:1px solid var(--line)}
 #daily-suggest button:hover,#daily-suggest button.on{background:var(--soft)}
 #daily-suggest b{font-weight:500;overflow:hidden;text-overflow:ellipsis}
 #daily-suggest small{color:var(--muted);font-size:12px;flex-shrink:0;max-width:45%;overflow:hidden;text-overflow:ellipsis}
-#daily-results{grid-template-columns:minmax(0,1fr);overflow-x:hidden}
+#daily-results{grid-template-columns:minmax(0,1fr);overflow-x:hidden;max-height:min(500px,58vh)}
 #daily-results .api-result>:not(.api-result-info){flex-shrink:0}
 #daily-results .api-result .btn{white-space:nowrap}
 #daily-results .api-result-info span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2100,7 +2105,7 @@ function ensureAlbum(x){
 async function enrich(id,silent){
   const s0=songs.find(x=>x.id===id);
   if(!s0||pendingMeta.has(id))return;
-  if(s0.meta&&s0.year&&s0.genre&&s0.sound&&s0.album&&s0.cover)return; // 이미 다 채워져 있음
+  if(s0.meta&&s0.year&&s0.genre&&s0.album&&s0.cover)return; // 이미 다 채워져 있음
   pendingMeta.add(id);renderDaily();
   const live=()=>songs.find(x=>x.id===id);
   let changed=false;
@@ -2121,7 +2126,7 @@ async function enrich(id,silent){
       put(cur,'year',tmp.year);put(cur,'genre',tmp.genre);
     }
     // 3) 사운드 + 장르 보완 (Last.fm 태그)
-    if((!cur.sound||!cur.genre)&&typeof lfm==='function'){
+    if(!cur.genre&&typeof lfm==='function'){
       const arr=v=>Array.isArray(v)?v:(v?[v]:[]);
       let tags=(cur.meta&&cur.meta.tags||[]).map(n=>({name:n}));
       try{
@@ -2130,11 +2135,6 @@ async function enrich(id,silent){
         if(tags.length<8){const a=await lfm('artist.getTopTags',{artist:a1||cur.artist});tags=tags.concat(arr(a&&a.toptags&&a.toptags.tag))}
       }catch(e){}
       cur=live();if(!cur){pendingMeta.delete(id);renderDaily();return}
-      if(!cur.sound){
-        const so=[];
-        for(const x of tags){const k=SOUND_MAP[String(x.name||'').toLowerCase().trim()];if(k&&!so.includes(k))so.push(k);if(so.length>=3)break}
-        put(cur,'sound',so.join(', '));
-      }
       if(!cur.genre&&tags[0]&&tags[0].name)put(cur,'genre',tags[0].name);
     }
     // 4) 앨범 목록에도 반영 (없으면 만들고, 비어 있는 칸은 채움)
@@ -2194,7 +2194,7 @@ async function addAlbumTracks(x,ag){
 }
 
 // ---------- 곡·앨범 추가 모달 ----------
-let kind='song',pool=[],cat=[],catState='',seq=0,added=new Set();
+let kind='song',pool=[],cat=[],catState='',seq=0,added=new Set(),rp=0;
 const rowKey=x=>x.kind+'|'+nz(x.title)+'|'+nz(x.artist);
 const closeDaily=()=>{stopAudio();closeModals()};
 $('#daily-close').onclick=closeDaily;$('#daily-done').onclick=closeDaily;
@@ -2202,13 +2202,13 @@ $('#daily-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)clo
 document.addEventListener('keydown',e=>{if(e.key==='Escape')stopAudio()});
 
 function openPicker(){
-  seq++;cat=[];catState='';added=new Set();kind='song';
+  seq++;cat=[];catState='';added=new Set();kind='song';rp=0;
   const [y,m,d]=parseKey(sel);
   $('#daily-modal-title').textContent=`${m}월 ${d}일 기록 추가`;
   $('#daily-query').value='';setKind('song');openModal('daily-modal');
 }
 function setKind(k){
-  kind=k;seq++;cat=[];catState='';
+  kind=k;seq++;cat=[];catState='';rp=0;
   document.querySelectorAll('#daily-kind button').forEach(b=>b.classList.toggle('on',b.dataset.kind===k));
   $('#daily-query').placeholder=k==='song'?'곡명 또는 아티스트 검색':'앨범명 또는 아티스트 검색';
   paint();
@@ -2221,6 +2221,12 @@ function libMatches(){
   return albums.filter(a=>!q||nz(a.title+' '+a.artist).includes(q)).slice(0,q?12:8)
     .map(a=>({kind:'album',albumId:a.id,title:a.title,artist:a.artist,album:'',year:a.year||'',genre:a.genre||'',cover:a.cover||'',preview:''}));
 }
+function recentAll(){
+  if(kind==='song')return songs.slice().sort((a,b)=>(b.created||0)-(a.created||0))
+    .map(s=>({kind:'song',songId:s.id,title:s.title,artist:s.artist,album:s.album||'',year:s.year||'',genre:s.genre||'',cover:s.cover||'',preview:s.preview||''}));
+  return albums.slice().sort((a,b)=>(b.created||0)-(a.created||0))
+    .map(a=>({kind:'album',albumId:a.id,title:a.title,artist:a.artist,album:'',year:a.year||'',genre:a.genre||'',cover:a.cover||'',preview:''}));
+}
 function rows(list,off){
   return list.map((x,i)=>{
     const done=added.has(rowKey(x));
@@ -2228,11 +2234,19 @@ function rows(list,off){
   }).join('');
 }
 function paint(){
-  const q=$('#daily-query').value.trim(),lib=libMatches(),label=kind==='song'?'내 노래':'내 앨범';
+  const q=$('#daily-query').value.trim(),lib=[],label='';
   const seen=new Set(lib.map(x=>nz(x.title)+'|'+nz(x.artist)));
   const c=cat.filter(x=>{const k=nz(x.title)+'|'+nz(x.artist);if(seen.has(k))return false;seen.add(k);return true});
   pool=lib.concat(c);
-  if(!q){$('#daily-results').innerHTML='';syncPlay();return}
+  if(!q){ // 검색어가 없으면 최근 추가한 곡·앨범을 5개씩 보여줘요
+    const all=recentAll(),per=5,pages=Math.max(1,Math.ceil(all.length/per));
+    rp=Math.min(Math.max(rp,0),pages-1);
+    const page=all.slice(rp*per,rp*per+per);pool=page;
+    $('#daily-results').innerHTML=page.length
+      ?`<div class="daily-sec">최근 추가한 ${kind==='song'?'노래':'앨범'}</div>`+rows(page,0)+(pages>1?`<div class="dpager"><button type="button" data-rpg="-1" aria-label="이전"${rp===0?' disabled':''}>‹</button><span>${rp+1} / ${pages}</span><button type="button" data-rpg="1" aria-label="다음"${rp>=pages-1?' disabled':''}>›</button></div>`:'')
+      :'';
+    syncPlay();return;
+  }
   let h=lib.length?`<div class="daily-sec">${label}</div>`+rows(lib,0):'';
   if(catState==='loading')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-status">카탈로그에서 검색하고 있어요…</div>';
   else if(catState==='error')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-hint">음악 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.</div>';
@@ -2319,6 +2333,7 @@ document.querySelectorAll('#daily-kind button').forEach(b=>b.addEventListener('c
 $('#daily-query').addEventListener('blur',()=>setTimeout(hideSuggest,150));
 
 $('#daily-results').addEventListener('click',e=>{
+  const pg=e.target.closest('[data-rpg]');if(pg){if(!pg.disabled){rp+=Number(pg.dataset.rpg);paint()}return}
   const p=e.target.closest('[data-dplay]');if(p){togglePlay(p.dataset.dplay);return}
   const b=e.target.closest('[data-pickidx]');if(!b||b.disabled)return;
   const x=pool[Number(b.dataset.pickidx)];if(!x)return;
