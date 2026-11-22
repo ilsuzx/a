@@ -1359,6 +1359,7 @@ function unblockSong(id){
   const x=blocked.splice(i,1)[0];save();render();
   undoToast('차단을 해제했어요.',()=>{blocked.splice(Math.min(i,blocked.length),0,x);save();render()});
 }
+window.blockRec=blockRec;window.unblockSong=unblockSong; // 이 블록은 별도 스코프라 바깥(추천 목록·인라인 onclick)에서 쓸 수 있게 노출
 function renderBlocked(){
   const box=$('#blocked-list');if(!box)return;
   $('#blocked-count').textContent=blocked.length?`${blocked.length}곡`:'';
@@ -1370,6 +1371,7 @@ $('#blocked-clear').onclick=()=>{if(!blocked.length)return;const b=blocked.slice
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{
   try{recAudio.pause();recPlaying=null;syncRecButtons()}catch(e){}
   try{mAud.pause();mSync()}catch(e){}
+  try{if(typeof playingId!=='undefined'&&playingId!=null)stopPlayer()}catch(e){}
 }));
 
 // ---------- render 연결 ----------
