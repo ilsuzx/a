@@ -153,7 +153,7 @@ h1{font-size:30px}
 <header>
   <div class="brand">AFTERTONE</div>
   <nav class="nav">
-    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="random">랜덤</button><button data-page="skipped">제외</button><button data-page="about">설정</button>
+    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="skipped">제외</button><button data-page="about">설정</button>
   </nav>
 </header>
 
@@ -181,14 +181,6 @@ h1{font-size:30px}
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
   <h2 id="taste-headline" style="display:none"></h2>
-</section>
-
-<section class="page" id="page-random">
-  <div class="head"><h1>랜덤 뽑기</h1></div>
-  <div class="random-stage">
-    <div class="random-options"><button class="btn secondary small active" data-kind="song">노래</button><button class="btn secondary small" data-kind="album">앨범</button><button class="btn secondary small" data-kind="artist">아티스트</button></div>
-    <div class="random-art" id="random-art">?</div><h2 id="random-title">무엇이 나올까요?</h2><p id="random-subtitle">버튼을 눌러 보세요.</p><button class="btn" id="draw">뽑기</button>
-  </div>
 </section>
 
 <section class="page" id="page-skipped">
@@ -363,13 +355,6 @@ function renderTaste(){
   else{$('#taste-headline').textContent='';$('#taste-copy').textContent='노래를 추가하면 여기에 취향이 정리돼요.'}}
 function render(){renderSongs();renderAlbums();renderTaste();renderCharts();renderSkipped()}
 $('#song-search').addEventListener('input',renderSongs);document.querySelectorAll('#song-scope button').forEach(b=>b.addEventListener('click',()=>{songScope=b.dataset.scope;renderSongs()}));$('#genre-filter').addEventListener('change',renderSongs);$('#album-search').addEventListener('input',renderAlbums);$('#album-sort').addEventListener('change',renderAlbums);
-document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{randomKind=b.dataset.kind;document.querySelectorAll('[data-kind]').forEach(x=>x.classList.toggle('active',x===b))});
-$('#draw').onclick=()=>{
-  const pool=randomKind==='song'?songs:randomKind==='album'?albums:[...new Set(songs.map(s=>s.artist))];
-  if(!pool.length){toast('먼저 음악을 등록해 주세요.');return}
-  const x=pool[Math.floor(Math.random()*pool.length)];
-  if(randomKind==='artist'){$('#random-art').innerHTML='♪';$('#random-title').textContent=x;$('#random-subtitle').textContent='좋아하는 아티스트'}
-  else{$('#random-art').innerHTML=cover(x.cover);$('#random-title').textContent=x.title;$('#random-subtitle').textContent=x.artist+(x.year?' · '+x.year:'')}};
 
 
 // ===== Favorites / Filters / Charts / Backup =====
@@ -1388,72 +1373,6 @@ render=function(){_render();try{renderBlocked();pruneRegisteredRecs()}catch(e){}
   if($('#xd-modal').classList.contains('open'))drawDetail();
   updateBar()};
 render();
-})();
-</script>
-<script>
-// ===== 랜덤 뽑기 모션: 슬롯머신처럼 빠르게 넘기다 점점 느려지고, 결과가 톡 튀어나와요 =====
-(()=>{
-const st=document.createElement('style');
-st.textContent=`
-.random-stage{position:relative}
-.random-art.xr-spin{animation:xr-shake .16s ease-in-out infinite;filter:blur(1.2px);opacity:.85}
-.random-art.xr-pop{animation:xr-pop .6s cubic-bezier(.2,1.5,.4,1)}
-#random-title.xr-fade,#random-subtitle.xr-fade{animation:xr-fade .45s ease both}
-#random-title.xr-run{color:var(--muted)}
-.xr-dot{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none;animation:xr-dot .85s ease-out forwards}
-@keyframes xr-shake{0%{transform:translateY(0) rotate(-2.5deg)}50%{transform:translateY(-7px) rotate(2.5deg)}100%{transform:translateY(0) rotate(-2.5deg)}}
-@keyframes xr-pop{0%{transform:scale(.55) rotate(-8deg);opacity:.3}60%{transform:scale(1.09) rotate(2deg);opacity:1}100%{transform:scale(1) rotate(0)}}
-@keyframes xr-fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes xr-dot{from{transform:translate(-50%,-50%) scale(1);opacity:1}to{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.3);opacity:0}}
-@media(prefers-reduced-motion:reduce){.random-art.xr-spin,.random-art.xr-pop,.xr-fade{animation:none}}
-`;
-document.head.appendChild(st);
-
-const art=$('#random-art'),title=$('#random-title'),sub=$('#random-subtitle'),btn=$('#draw');
-const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-const show=x=>{
-  if(randomKind==='artist'){art.innerHTML='♪';title.textContent=x;sub.textContent='좋아하는 아티스트'}
-  else{art.innerHTML=cover(x.cover);title.textContent=x.title;sub.textContent=x.artist+(x.year?' · '+x.year:'')}
-};
-function burst(){
-  const stage=$('.random-stage'),a=art.getBoundingClientRect(),s=stage.getBoundingClientRect();
-  const cx=a.left-s.left+a.width/2,cy=a.top-s.top+a.height/2,colors=['#111','#e0405a','#777','#bbb'];
-  for(let i=0;i<18;i++){
-    const d=document.createElement('i'),ang=Math.PI*2*i/18+Math.random()*.4,dist=(a.width/2+30)+Math.random()*70;
-    d.className='xr-dot';
-    d.style.cssText=`left:${cx}px;top:${cy}px;--dx:${Math.cos(ang)*dist}px;--dy:${Math.sin(ang)*dist}px;background:${colors[i%4]}`;
-    stage.appendChild(d);setTimeout(()=>d.remove(),900);
-  }
-}
-function reveal(){
-  [title,sub].forEach(e=>{e.classList.remove('xr-fade');void e.offsetWidth;e.classList.add('xr-fade')});
-  art.classList.remove('xr-pop');void art.offsetWidth;art.classList.add('xr-pop');
-  burst();
-}
-btn.onclick=()=>{
-  if(btn.disabled)return;
-  const pool=randomKind==='song'?songs:randomKind==='album'?albums:[...new Set(songs.map(s=>s.artist))];
-  if(!pool.length){toast('먼저 음악을 등록해 주세요.');return}
-  const final=pool[Math.floor(Math.random()*pool.length)];
-  if(reduce||pool.length<2){show(final);return}
-  btn.disabled=true;btn.textContent='뽑는 중…';
-  document.querySelectorAll('[data-kind]').forEach(b=>b.disabled=true);
-  art.classList.remove('xr-pop');art.classList.add('xr-spin');title.classList.add('xr-run');
-  let step=0,prev=null;const total=13;
-  const tick=()=>{
-    if(step>=total){
-      art.classList.remove('xr-spin');title.classList.remove('xr-run');
-      show(final);reveal();
-      btn.disabled=false;btn.textContent='다시 뽑기';
-      document.querySelectorAll('[data-kind]').forEach(b=>b.disabled=false);
-      return;
-    }
-    let x;do{x=pool[Math.floor(Math.random()*pool.length)]}while(x===prev);
-    prev=x;show(x);step++;
-    setTimeout(tick,40+step*step*1.6); // 갈수록 느려져요
-  };
-  tick();
-};
 })();
 </script>
 <script>
