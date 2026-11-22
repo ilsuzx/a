@@ -707,8 +707,8 @@ async function similarViaArtists(artist){
       return tr?{title:tr.name,artist:a.name,match:Number(a.match)||0}:null}catch(e){return null}}));
   return res.filter(Boolean);
 }
-async function getSimilar(artist,track){
-  let r=[];try{r=await similarTracks(artist,track)}catch(e){}
+async function getSimilar(artist,track,limit){
+  let r=[];try{r=await similarTracks(artist,track,limit)}catch(e){}
   if(r.length<3){try{r=[...r,...await similarViaArtists(artist)]}catch(e){}}
   return r;
 }
@@ -807,12 +807,33 @@ async function showSimilar(id){
   $('#sim-title').textContent='비슷한 곡 · '+s.title;
   $('#sim-results').innerHTML='<div class="api-status">비슷한 곡을 찾고 있어요…</div>';
   openModal('sim-modal');
-  let list=await getSimilar(s.artist,s.title);
+  // 후보를 넉넉히(50곡) 받은 뒤, 분위기(태그)가 가까운 순으로 고르고 같은 아티스트는 최대 2곡까지만 보여줘요
+  let list=await getSimilar(s.artist,s.title,50);
   const lib=new Set(songs.map(skey)),seen=new Set();
-  list=list.filter(c=>{const k=skey(c);if(lib.has(k)||seen.has(k))return false;seen.add(k);return true})
-    .sort((a,b)=>b.match-a.match).slice(0,15).map(c=>({...c,meta:c.match?'유사도 '+Math.round(c.match*100)+'%':''}));
+  list=list.filter(c=>{const k=skey(c);if(lib.has(k)||seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>b.match-a.match);
   if(!list.length){$('#sim-results').innerHTML='<div class="api-hint">비슷한 곡 정보를 찾지 못했어요.</div>';return}
-  renderRecList($('#sim-results'),list);
+  try{
+    const base=unitVec(await fullTags(s.artist,s.title));
+    if(base.size){
+      const pool=list.slice(0,30),maxM=Math.max(...pool.map(c=>c.match||0),0.001);
+      for(let i=0;i<pool.length;i+=6){
+        await Promise.all(pool.slice(i,i+6).map(async c=>{
+          try{const v=unitVec(await fullTags(c.artist,c.title));let cos=0;v.forEach((x,k)=>{const f=base.get(k);if(f)cos+=x*f});c._cos=cos}catch(e){c._cos=0}
+        }));
+      }
+      pool.forEach(c=>{c._rank=0.6*((c.match||0)/maxM)+0.4*Math.min(1,(c._cos||0)*1.6)});
+      list=[...pool.sort((a,b)=>b._rank-a._rank),...list.slice(30)];
+    }
+  }catch(e){}
+  const per=new Map(),out=[];
+  for(const c of list){
+    const a=String(c.artist||'').toLowerCase(),n=per.get(a)||0;
+    if(n>=2)continue;
+    per.set(a,n+1);out.push(c);
+    if(out.length>=15)break;
+  }
+  const res=out.map(c=>({...c,meta:c.match?'유사도 '+Math.round(c.match*100)+'%':''}));
+  renderRecList($('#sim-results'),res);
 }
 // 추천 곡을 노래 추가 창으로 보내 Deezer/Apple 검색 결과로 자동 입력
 function addRecommended(item){
@@ -1297,8 +1318,8 @@ const isRegistered=(c,idx)=>{
   return arts.some(x=>x&&a&&(x===a||x.includes(a)||a.includes(x)));
 };
 const _getSimilar=getSimilar;
-getSimilar=async function(artist,track){
-  const list=await _getSimilar(artist,track),idx=regIndex();
+getSimilar=async function(artist,track,limit){
+  const list=await _getSimilar(artist,track,limit),idx=regIndex();
   return list.filter(c=>!isRegistered(c,idx));
 };
 recFilterHook=list=>{const idx=regIndex();return list.filter(c=>!isRegistered(c,idx))};
