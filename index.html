@@ -1930,7 +1930,7 @@ document.body.insertAdjacentHTML('beforeend',`
   <div class="seg" id="daily-kind" role="group" aria-label="종류"><button type="button" data-kind="song" class="on">곡</button><button type="button" data-kind="album">앨범</button></div>
   <div class="api-search-line"><input id="daily-query" placeholder="곡명 또는 아티스트 검색" autocomplete="off"><button type="button" class="btn small" id="daily-search">검색</button></div>
   <div class="api-results" id="daily-results"></div>
-  <div class="modal-actions"><span class="pk-note">여러 곡을 계속 추가할 수 있어요.</span><button type="button" class="btn" id="daily-done">완료</button></div>
+  <div class="modal-actions"><span class="pk-note"></span><button type="button" class="btn" id="daily-done">완료</button></div>
 </div></div>`);
 
 // ---------- 미리듣기 ----------
@@ -2229,11 +2229,10 @@ function paint(){
   const c=cat.filter(x=>{const k=nz(x.title)+'|'+nz(x.artist);if(seen.has(k))return false;seen.add(k);return true});
   pool=lib.concat(c);
   if(!q){$('#daily-results').innerHTML='';syncPlay();return}
-  let h=`<div class="daily-sec">${q?label:label+' · 최근 추가'}</div>`+(lib.length?rows(lib,0):`<div class="api-hint">일치하는 ${kind==='song'?'곡':'앨범'}이 없어요.</div>`);
+  let h=lib.length?`<div class="daily-sec">${label}</div>`+rows(lib,0):'';
   if(catState==='loading')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-status">카탈로그에서 검색하고 있어요…</div>';
   else if(catState==='error')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-hint">음악 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.</div>';
   else if(catState==='done')h+='<div class="daily-sec">음악 카탈로그</div>'+(c.length?rows(c,lib.length):'<div class="api-hint">카탈로그에서 새로 찾은 항목이 없어요.</div>');
-  else h+=`<div class="api-hint" style="padding-top:10px">${q?'Enter를 누르면 음악 카탈로그에서도 찾아요.':'목록에 없는 '+(kind==='song'?'곡':'앨범')+'은 이름을 입력하고 Enter로 카탈로그에서 찾을 수 있어요. 추가하면 '+(kind==='song'?'노래':'앨범')+' 목록에도 자동으로 들어가요.'}</div>`;
   $('#daily-results').innerHTML=h;syncPlay();
 }
 function runCatalog(){
