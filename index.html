@@ -449,7 +449,19 @@ function playSong(id){const s=songs.find(x=>x.id===id);if(!s||!s.preview)return;
   player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));refreshRows()}
 function stopPlayer(){player.pause();player.removeAttribute('src');player.load();playingId=null;miniUI()}
 ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,refreshRows));
-player.addEventListener('error',()=>{if(playingId){toast('미리듣기를 불러오지 못했어요.');refreshRows()}});
+let prevTried='';
+player.addEventListener('error',async()=>{
+  if(!playingId)return;
+  const s=songs.find(x=>x.id===playingId),id=playingId;
+  if(!s||prevTried===s.preview){toast('미리듣기를 불러오지 못했어요.');refreshRows();return}
+  prevTried=s.preview;
+  const u=await freshPreviewUrl(s.title,s.artist);
+  if(playingId!==id)return;
+  if(!u){toast('미리듣기를 불러오지 못했어요.');refreshRows();return}
+  const bad=s.preview;songs.forEach(x=>{if(x.preview===bad)x.preview=u});prevTried=u;
+  try{save()}catch(e){}
+  player.src=u;player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));refreshRows();
+});
 player.addEventListener('timeupdate',()=>{const d=player.duration||30;$('#mini-seek').value=player.currentTime/d*100});
 $('#mini-seek').addEventListener('input',e=>{const d=player.duration||30;player.currentTime=e.target.value/100*d});
 $('#mini-toggle').onclick=()=>playingId&&playSong(playingId);
@@ -478,6 +490,17 @@ function deezerSearch(term,type,onDone,limit){
       :{trackName:x.title,artistName:x.artist&&x.artist.name,collectionName:x.album&&x.album.title,collectionId:x.album&&x.album.id,artworkUrl100:x.album&&x.album.cover_medium,_cover:x.album&&(x.album.cover_xl||x.album.cover_big||x.album.cover_medium),_albumId:x.album&&x.album.id,previewUrl:x.preview,releaseDate:'',primaryGenreName:''});
     onDone({results});
   });
+}
+// 저장해 둔 미리듣기 주소는 시간이 지나면 만료돼서, 곡 정보로 새 주소를 다시 찾아요.
+async function freshPreviewUrl(title,artist){
+  const n=v=>String(v||'').toLowerCase().replace(/\s+/g,''),q=v=>String(v||'').replace(/"/g,'');
+  const t=n(title),a=n(artist);
+  for(const term of ['artist:"'+q(artist)+'" track:"'+q(title)+'"',q(title)+' '+q(artist)]){
+    const d=await new Promise(r=>deezerSearch(term,'song',r,15));
+    const hit=((d&&d.results)||[]).find(x=>x.previewUrl&&n(x.trackName)===t&&(n(x.artistName).includes(a)||a.includes(n(x.artistName))));
+    if(hit)return hit.previewUrl;
+  }
+  return '';
 }
 const appleEndpoint=(term,entity,country,attr)=>'https://itunes.apple.com/search?'+new URLSearchParams(Object.assign({term,country,media:'music',entity,limit:'50'},attr?{attribute:attr}:{})).toString();
 async function fetchApple(ep){
@@ -1875,9 +1898,6 @@ show(null);
 .tt-row{position:relative;display:flex;align-items:center;gap:12px;padding:9px 0 9px 20px}
 .tt-row:before{content:"";position:absolute;left:-4px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:#fff;border:2px solid #c9c9c5}
 .tt-row.rep:before{background:var(--fg);border-color:var(--fg)}
-.tt-time::-webkit-calendar-picker-indicator{display:none}
-.tt-time{width:88px;flex-shrink:0;border:0;background:none;padding:2px 0;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;border-radius:6px}
-.tt-time:hover,.tt-time:focus{background:var(--soft);color:var(--fg);outline:0}
 .tt-meta{flex:1;min-width:0}
 .tt-meta strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tt-meta span{display:block;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1886,10 +1906,6 @@ show(null);
 .tt-row .mini-cover{width:40px;height:40px}
 .daily-sec{font-size:12px;font-weight:600;color:var(--muted);padding:12px 2px 6px;letter-spacing:.03em}
 #daily-modal .seg{display:inline-flex;margin-bottom:12px}
-#day-panel .tt-opt{display:flex;align-items:center;justify-content:flex-start;gap:10px;margin:18px 0 0 5px;padding-top:4px;font-size:13px;color:var(--muted)}
-.tt-sw{width:36px;height:20px;border-radius:999px;border:0;background:#d6d6d3;position:relative;padding:0;transition:background .15s}
-.tt-sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
-.tt-sw.on{background:var(--fg)}.tt-sw.on i{transform:translateX(16px)}
 #daily-results .dpager{display:flex;align-items:center;justify-content:center;gap:14px;padding:10px 0 2px;font-size:13px;color:var(--muted)}
 #daily-results .dpager button{border:0;background:none;font-size:20px;line-height:1;padding:4px 12px;color:var(--fg);border-radius:6px}
 #daily-results .dpager button:hover:not(:disabled){background:var(--soft)}
@@ -1908,7 +1924,7 @@ show(null);
 .pk-note{margin-right:auto;color:var(--muted);font-size:12px}
 .api-result .btn[disabled]{opacity:.5;cursor:default}
 @media(max-width:860px){.daily-layout{grid-template-columns:minmax(0,1fr);gap:30px}}
-@media(max-width:560px){.dc .dn{top:3px;left:5px;font-size:11px}.dcount{right:4px;bottom:3px;font-size:10px}.cal-bar h2{min-width:0;font-size:17px}.cal-count{display:none}.tt-time{width:84px}.dp-top h2{font-size:22px}}
+@media(max-width:560px){.dc .dn{top:3px;left:5px;font-size:11px}.dcount{right:4px;bottom:3px;font-size:10px}.cal-bar h2{min-width:0;font-size:17px}.cal-count{display:none}.dp-top h2{font-size:22px}}
 </style>
 <script>
 // ===== 달력(메인): 날짜별 여러 곡/앨범 기록 + 시간표 + 대표곡 + 취향 분석 =====
@@ -1918,11 +1934,9 @@ const ymd=(y,m,d)=>y+'-'+pad(m+1)+'-'+pad(d);
 const todayKey=()=>{const t=new Date();return ymd(t.getFullYear(),t.getMonth(),t.getDate())};
 const DOW=['일','월','화','수','목','금','토'];
 const nz=s=>String(s||'').toLowerCase().replace(/[\s.,'’"“”\-_!?()\[\]]/g,'');
-const hhmm=t=>{const d=new Date(t);return pad(d.getHours())+':'+pad(d.getMinutes())};
 const parseKey=k=>k.split('-').map(Number);
 const n0=new Date();let view={y:n0.getFullYear(),m:n0.getMonth()},sel=todayKey();
 const pendingMeta=new Set();
-let ttOn=true;try{ttOn=localStorage.getItem('aftertone_tt')!=='0'}catch(e){}
 
 // ---------- 탭/페이지: 달력이 첫 화면 ----------
 document.querySelector('[data-page="songs"]').classList.remove('active');
@@ -1954,7 +1968,25 @@ document.body.insertAdjacentHTML('beforeend',`
 const aud=new Audio();aud.preload='none';let playingSrc='';
 const syncPlay=()=>document.querySelectorAll('[data-dplay]').forEach(b=>{b.textContent=(b.dataset.dplay===playingSrc&&!aud.paused)?'❚❚':'▶'});
 ['play','pause','ended'].forEach(ev=>aud.addEventListener(ev,syncPlay));
-aud.addEventListener('error',()=>{if(playingSrc){toast('미리듣기를 불러오지 못했어요.');playingSrc='';syncPlay()}});
+let dTried='';
+aud.addEventListener('error',async()=>{
+  if(!playingSrc)return;
+  const bad=playingSrc,fail=()=>{toast('미리듣기를 불러오지 못했어요.');playingSrc='';syncPlay()};
+  if(dTried===bad){fail();return}
+  dTried=bad;
+  let ref=null;
+  for(const k in daily){const f=daily[k].items.find(i=>i.preview===bad);if(f){ref=f;break}}
+  if(!ref)ref=songs.find(x=>x.preview===bad)||null;
+  if(!ref){fail();return}
+  const u=await freshPreviewUrl(ref.title,ref.artist);
+  if(playingSrc!==bad)return;
+  if(!u){fail();return}
+  for(const k in daily)daily[k].items.forEach(i=>{if(i.preview===bad)i.preview=u});
+  songs.forEach(x=>{if(x.preview===bad)x.preview=u});
+  dTried=u;playingSrc=u;
+  try{save()}catch(e){}
+  renderDaily();aud.src=u;aud.play().catch(()=>{});
+});
 function togglePlay(src){
   if(!src)return;
   if(playingSrc===src&&!aud.paused){aud.pause();return}
@@ -2043,19 +2075,16 @@ function renderDaily(){
 function renderPanel(){
   const day=daily[sel],items=day?day.items:[],[y,m,d]=parseKey(sel),w=new Date(y,m-1,d).getDay(),isToday=sel===todayKey();
   let h=`<div class="dp-top"><div><h2>${m}월 ${d}일</h2><span>${y}년 · ${DOW[w]}요일${isToday?' · 오늘':''}</span></div><button class="btn" id="dp-add">＋ 곡·앨범 추가</button></div>`;
-  const opt=`<div class="tt-opt"><button type="button" class="tt-sw${ttOn?' on':''}" id="tt-toggle" role="switch" aria-checked="${ttOn}" aria-label="타임테이블 사용"><i></i></button><span>타임테이블 ${ttOn?'ON':'OFF'}</span></div>`;
   if(!items.length)h+=`<div class="dp-empty"><b>아직 기록이 없어요</b>${isToday?'오늘 들은 음악을 남겨 보세요.':'이 날 들은 음악을 남겨 보세요.'}</div>`;
   else{
     const rep=repOf(day),a=analyze(items,isToday);
-    h+=`<div class="dp-hero"><div class="tc-art">${cover(rep.cover)}</div><div class="tc-info"><small>${isToday?'오늘의':'이날의'} 대표곡${rep.kind==='album'?' · 앨범':''}</small><strong>${esc(rep.title)}</strong><span>${esc(rep.artist)}${rep.kind==='song'&&rep.album?' · '+esc(rep.album):''}</span></div>${playBtn(rep.preview)}</div>`;
+    h+=`<div class="dp-hero"><div class="tc-art">${cover(rep.cover)}</div><div class="tc-info"><small>${isToday?'오늘의':'이날의'} 대표곡${rep.kind==='album'?' · 앨범':''}</small><strong>${esc(rep.title)}</strong><span>${esc(rep.artist)}${rep.kind==='song'&&rep.album?' · '+esc(rep.album):''}</span></div></div>`;
     h+=a.kw.length?`<div class="dp-ana"><div class="ana-chips">${a.kw.map(k=>`<span>${esc(k)}</span>`).join('')}</div></div>`:'';
-    h+=`<div class="tt-title"><b>${ttOn?'타임테이블':'기록'}</b><span>${items.length}개 기록 · ★ 대표곡</span></div><div class="tt">`
-      +items.map(it=>{const on=it.id===rep.id;return `<div class="tt-row${on?' rep':''}" data-id="${it.id}">${ttOn?`<input class="tt-time" type="time" value="${hhmm(it.t)}" aria-label="기록 시간">`:''}<div class="mini-cover">${cover(it.cover)}</div><div class="tt-meta"><strong>${esc(it.title)}</strong><span>${it.kind==='album'?'앨범 · ':''}${esc(it.artist)}${it.kind==='song'&&it.album?' · '+esc(it.album):''}</span></div><div class="row-actions">${playBtn(it.preview)}<button class="icon-btn tt-star${on?' on':''}" data-star title="대표곡으로 설정" aria-label="대표곡으로 설정">${on?'★':'☆'}</button><button class="icon-btn" data-del title="삭제" aria-label="삭제">×</button></div></div>`}).join('')+`</div>`;
+    h+=`<div class="tt-title"><b>기록</b><span>${items.length}개 기록 · ★ 대표곡</span></div><div class="tt">`
+      +items.map(it=>{const on=it.id===rep.id;return `<div class="tt-row${on?' rep':''}" data-id="${it.id}"><div class="mini-cover">${cover(it.cover)}</div><div class="tt-meta"><strong>${esc(it.title)}</strong><span>${it.kind==='album'?'앨범 · ':''}${esc(it.artist)}${it.kind==='song'&&it.album?' · '+esc(it.album):''}</span></div><div class="row-actions"><button class="icon-btn tt-star${on?' on':''}" data-star title="대표곡으로 설정" aria-label="대표곡으로 설정">${on?'★':'☆'}</button><button class="icon-btn" data-del title="삭제" aria-label="삭제">×</button></div></div>`}).join('')+`</div>`;
   }
-  h+=opt;
   $('#day-panel').innerHTML=h;
 }
-$('#day-panel').addEventListener('click',e=>{if(!e.target.closest('#tt-toggle'))return;ttOn=!ttOn;try{localStorage.setItem('aftertone_tt',ttOn?'1':'0')}catch(err){}renderPanel()});
 const _render=window.render;
 window.render=function(){_render.apply(this,arguments);renderDaily()};
 
@@ -2083,13 +2112,6 @@ $('#day-panel').addEventListener('click',e=>{
     if(!day.items.length)delete daily[sel];
     save();renderDaily();toast('기록을 삭제했어요.');
   }
-});
-$('#day-panel').addEventListener('change',e=>{
-  const inp=e.target.closest('.tt-time');if(!inp)return;
-  const day=daily[sel],it=day&&day.items.find(i=>i.id===inp.closest('.tt-row').dataset.id);if(!it)return;
-  const mt=/^(\d{1,2}):(\d{2})/.exec(inp.value);if(!mt){inp.value=hhmm(it.t);return}
-  const [y,m,d]=parseKey(sel);it.t=new Date(y,m-1,d,+mt[1],+mt[2],0).getTime();
-  day.items.sort((a,b)=>a.t-b.t);save();renderDaily();
 });
 
 // ---------- 라이브러리 자동 추가 ----------
