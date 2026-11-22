@@ -1885,11 +1885,17 @@ show(null);
 .tt-row .mini-cover{width:40px;height:40px}
 .daily-sec{font-size:12px;font-weight:600;color:var(--muted);padding:12px 2px 6px;letter-spacing:.03em}
 #daily-modal .seg{display:inline-flex;margin-bottom:12px}
+#daily-suggest{border:1px solid var(--line);border-radius:10px;margin-top:6px;background:#fff;overflow:hidden}
+#daily-suggest button{display:flex;align-items:baseline;gap:8px;width:100%;border:0;background:none;text-align:left;padding:10px 12px;font-size:14px;color:var(--fg);white-space:nowrap;overflow:hidden}
+#daily-suggest button+button{border-top:1px solid var(--line)}
+#daily-suggest button:hover,#daily-suggest button.on{background:var(--soft)}
+#daily-suggest b{font-weight:500;overflow:hidden;text-overflow:ellipsis}
+#daily-suggest small{color:var(--muted);font-size:12px;flex-shrink:0;max-width:45%;overflow:hidden;text-overflow:ellipsis}
 #daily-results{grid-template-columns:minmax(0,1fr);overflow-x:hidden}
 #daily-results .api-result>:not(.api-result-info){flex-shrink:0}
 #daily-results .api-result .btn{white-space:nowrap}
 #daily-results .api-result-info span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#daily-modal .modal-actions{align-items:center}
+#daily-modal .modal-actions{display:none}
 .pk-note{margin-right:auto;color:var(--muted);font-size:12px}
 .api-result .btn[disabled]{opacity:.5;cursor:default}
 @media(max-width:860px){.daily-layout{grid-template-columns:minmax(0,1fr);gap:30px}}
@@ -1929,6 +1935,7 @@ document.body.insertAdjacentHTML('beforeend',`
   <div class="modal-head"><h2 id="daily-modal-title"></h2><button class="close" id="daily-close">×</button></div>
   <div class="seg" id="daily-kind" role="group" aria-label="종류"><button type="button" data-kind="song" class="on">곡</button><button type="button" data-kind="album">앨범</button></div>
   <div class="api-search-line"><input id="daily-query" placeholder="곡명 또는 아티스트 검색" autocomplete="off"><button type="button" class="btn small" id="daily-search">검색</button></div>
+  <div id="daily-suggest" style="display:none"></div>
   <div class="api-results" id="daily-results"></div>
   <div class="modal-actions"><span class="pk-note"></span><button type="button" class="btn" id="daily-done">완료</button></div>
 </div></div>`);
@@ -2254,6 +2261,66 @@ function runCatalog(){
 $('#daily-search').onclick=runCatalog;
 $('#daily-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runCatalog()}});
 $('#daily-query').addEventListener('input',()=>{seq++;cat=[];catState='';paint()});
+// ---------- 자동완성: 입력하는 동안 아래에 후보가 떠요 ----------
+let sgTimer=0,sgSeq=0,sgList=[],sgIdx=-1;
+function hideSuggest(){clearTimeout(sgTimer);sgSeq++;sgList=[];sgIdx=-1;const b=$('#daily-suggest');b.style.display='none';b.innerHTML=''}
+function drawSuggest(){
+  const b=$('#daily-suggest');
+  if(!sgList.length){b.style.display='none';b.innerHTML='';return}
+  b.innerHTML=sgList.map((x,i)=>`<button type="button" data-sg="${i}"${i===sgIdx?' class="on"':''}><b>${esc(x.label)}</b><small>${esc(x.sub)}</small></button>`).join('');
+  b.style.display='';
+}
+function suggestFor(q){
+  const my=++sgSeq,k=kind,seen=new Set(),out=[];
+  const add=(label,sub)=>{const n=nz(label);if(!label||!n||seen.has(n))return;seen.add(n);out.push({label,sub})};
+  const finish=()=>{
+    if(my!==sgSeq||$('#daily-query').value.trim()!==q)return;
+    sgList=out.slice(0,7);sgIdx=-1;drawSuggest();
+  };
+  jsonp('https://api.deezer.com/search/autocomplete?q='+encodeURIComponent(q)+'&limit=8&output=jsonp',d=>{
+    if(my!==sgSeq)return;
+    if(d&&!d.error){
+      const arr=v=>(v&&v.data)||[];
+      if(k==='song'){
+        arr(d.artists).slice(0,3).forEach(a=>add(a.name,'아티스트'));
+        arr(d.tracks).forEach(t=>add(t.title,(t.artist&&t.artist.name)||''));
+      }else{
+        arr(d.albums).forEach(a=>add(a.title,(a.artist&&a.artist.name)||''));
+        arr(d.artists).slice(0,2).forEach(a=>add(a.name,'아티스트'));
+      }
+    }
+    if(out.length){finish();return}
+    deezerSearch(q,k,r=>{ // 자동완성 서버가 비어 있으면 일반 검색 결과로 대신해요
+      if(my!==sgSeq)return;
+      ((r&&r.results)||[]).forEach(x=>k==='song'?add(x.trackName,x.artistName):add(x.collectionName,x.artistName));
+      finish();
+    },8);
+  });
+}
+function pickSuggest(i){
+  const x=sgList[i];if(!x)return;
+  $('#daily-query').value=x.label;hideSuggest();runCatalog();
+}
+$('#daily-query').addEventListener('input',()=>{
+  clearTimeout(sgTimer);sgSeq++;
+  const q=$('#daily-query').value.trim();
+  if(!q){hideSuggest();return}
+  sgTimer=setTimeout(()=>suggestFor(q),220);
+});
+$('#daily-query').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(!sgList.length)return;e.preventDefault();
+    sgIdx=(sgIdx+(e.key==='ArrowDown'?1:-1)+sgList.length)%sgList.length;drawSuggest();
+  }else if(e.key==='Enter'){
+    if(sgIdx>=0&&sgList[sgIdx]){e.preventDefault();e.stopImmediatePropagation();pickSuggest(sgIdx)}
+    else hideSuggest();
+  }else if(e.key==='Escape')hideSuggest();
+},true);
+$('#daily-suggest').addEventListener('mousedown',e=>{const b=e.target.closest('[data-sg]');if(b){e.preventDefault();pickSuggest(Number(b.dataset.sg))}});
+$('#daily-search').addEventListener('click',hideSuggest);
+document.querySelectorAll('#daily-kind button').forEach(b=>b.addEventListener('click',hideSuggest));
+$('#daily-query').addEventListener('blur',()=>setTimeout(hideSuggest,150));
+
 $('#daily-results').addEventListener('click',e=>{
   const p=e.target.closest('[data-dplay]');if(p){togglePlay(p.dataset.dplay);return}
   const b=e.target.closest('[data-pickidx]');if(!b||b.disabled)return;
