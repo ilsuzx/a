@@ -2001,6 +2001,37 @@ h1{font-size:28px}
 .api-result{padding:6px 8px}
 .btn{padding:7px 15px}.btn.small{padding:5px 12px}
 .random-stage{padding:18px 0}.random-stage .random-art{width:180px;height:180px;margin:14px auto}
+/* 모바일: 줄바꿈·깨짐 보정 */
+body{word-break:keep-all;overflow-wrap:break-word}
+.btn,.seg button,.nav button,.link,.tag-cloud span,.ana-chips span{white-space:nowrap}
+h1,.head h2,.block .head h2{white-space:nowrap}
+.song-meta span,.song-meta strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.api-result-info strong,.api-result-info span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.api-result-info span[style*="white-space:normal"]{white-space:normal!important;overflow:visible;text-overflow:clip}
+.api-results{grid-template-columns:minmax(0,1fr)}
+.api-result>.rec-play,.api-result>.api-result-actions,.api-result .mini-cover,.api-result>img{flex-shrink:0}
+.api-result-actions{display:flex;align-items:center;gap:6px}
+.api-result-actions .rec-block{margin-left:0!important}
+@media(max-width:600px){
+.wrap{padding:0 16px 100px}
+header{margin:0 -16px 18px;padding:8px 16px;gap:4px}
+.nav{width:100%}
+h1{font-size:24px}
+.head{flex-wrap:wrap;gap:10px}
+.head>div[style*="display:flex"]{flex-wrap:wrap;justify-content:flex-start!important}
+.head .btn{padding:6px 12px;font-size:13px}
+.toolbar select,.fbar select{flex:1 1 calc(50% - 8px);max-width:none;min-width:0}
+.search{min-width:0;flex:1 1 100%}
+.song-row{gap:8px}
+.row-actions .icon-btn{padding:6px 5px}
+.summary,.glance{flex-wrap:wrap;gap:14px 22px}
+.api-result{flex-wrap:nowrap;gap:6px;padding:6px}.api-result .mini-cover{width:40px;height:40px}.api-result-actions{flex-direction:column;align-items:stretch;gap:4px}
+.api-result-actions button,.api-result-btns .btn{padding:6px 9px}
+.modal{padding:16px;border-radius:12px}
+.backup-actions .btn{flex:1 1 auto}
+#cf-actions,#rec-body{min-width:0}
+.toast{max-width:92vw}
+}
 </style>
 </body>
 </html>
