@@ -830,10 +830,10 @@ async function showSimilar(id){
     const a=String(c.artist||'').toLowerCase(),n=per.get(a)||0;
     if(n>=2)continue;
     per.set(a,n+1);out.push(c);
-    if(out.length>=15)break;
+    if(out.length>=40)break; // 미리듣기를 못 찾는 곡은 빠지니까 넉넉히 넘겨요
   }
   const res=out.map(c=>({...c,meta:c.match?'유사도 '+Math.round(c.match*100)+'%':''}));
-  renderRecList($('#sim-results'),res);
+  renderRecList($('#sim-results'),res,{cap:15});
 }
 // 추천 곡을 노래 추가 창으로 보내 Deezer/Apple 검색 결과로 자동 입력
 function addRecommended(item){
