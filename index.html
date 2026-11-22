@@ -2037,10 +2037,7 @@ function renderPanel(){
   else{
     const rep=repOf(day),a=analyze(items,isToday);
     h+=`<div class="dp-hero"><div class="tc-art">${cover(rep.cover)}</div><div class="tc-info"><small>${isToday?'오늘의':'이날의'} 대표곡${rep.kind==='album'?' · 앨범':''}</small><strong>${esc(rep.title)}</strong><span>${esc(rep.artist)}${rep.kind==='song'&&rep.album?' · '+esc(rep.album):''}</span></div>${playBtn(rep.preview)}</div>`;
-    h+=`<div class="dp-ana"><small>${isToday?'오늘':'이날'}의 취향 분석 · ${esc(a.stat)}</small><p class="ana-head">${esc(a.head)}</p>${a.sub?`<p class="ana-sub">${esc(a.sub)}</p>`:''}`
-      +(a.bars.length?`<div class="ana-bars">${a.bars.map(b=>`<div><span>${b[0]}</span><i><b style="width:${b[1]}%"></b></i><em>${b[1]}</em></div>`).join('')}</div>`:'')
-      +(a.kw.length?`<div class="ana-chips">${a.kw.map(k=>`<span>${esc(k)}</span>`).join('')}</div>`:'')
-      +(a.pend?'<p class="ana-note">곡 정보를 불러오는 중이에요. 잠시 후 분석이 더 정확해져요.</p>':'')+`</div>`;
+    h+=a.kw.length?`<div class="dp-ana"><div class="ana-chips">${a.kw.map(k=>`<span>${esc(k)}</span>`).join('')}</div></div>`:'';
     h+=`<div class="tt-title"><b>타임테이블</b><span>${items.length}개 기록 · ★ 대표곡</span></div><div class="tt">`
       +items.map(it=>{const on=it.id===rep.id;return `<div class="tt-row${on?' rep':''}" data-id="${it.id}"><input class="tt-time" type="time" value="${hhmm(it.t)}" aria-label="기록 시간"><div class="mini-cover">${cover(it.cover)}</div><div class="tt-meta"><strong>${esc(it.title)}</strong><span>${it.kind==='album'?'앨범 · ':''}${esc(it.artist)}${it.kind==='song'&&it.album?' · '+esc(it.album):''}</span></div><div class="row-actions">${playBtn(it.preview)}<button class="icon-btn tt-star${on?' on':''}" data-star title="대표곡으로 설정" aria-label="대표곡으로 설정">${on?'★':'☆'}</button><button class="icon-btn" data-del title="삭제" aria-label="삭제">×</button></div></div>`}).join('')+`</div>`;
   }
