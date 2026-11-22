@@ -1816,7 +1816,7 @@ function showId(){
       box.innerHTML='<p>이 브라우저에서 쓰는 익명 ID예요. 서버에 올린 내 곡 목록은 이 ID에만 연결돼요. 다른 기기나 시크릿 창에서는 다른 ID가 만들어져요.</p><div class="toolbar"><code style="user-select:all;word-break:break-all;flex:1;min-width:0">'+id+'</code><button class="btn secondary small" id="uid-copy">복사</button></div>';
       $('#uid-copy').onclick=()=>copyId(id);
     }else{
-      box.innerHTML='<p>아직 ID가 없어요. 취향 탭의 \'다른 사용자들이 좋아한 곡\'에서 참여하고 추천 받기를 누르면 만들어져요.</p>';
+      box.innerHTML='<p>아직 ID가 없어요. 처음 접속할 때 뜨는 안내에 동의하면 바로 만들어져요. 취향 탭의 \'다른 사용자들이 좋아한 곡\'에서 참여할 수도 있어요.</p>';
     }
   }
 }
@@ -1830,7 +1830,7 @@ function openNotice(){
       +'<div class="modal-head"><h2 id="cf-notice-title">취향이 비슷한 사용자의 곡 추천</h2></div>'
       +'<p style="font-size:14px;line-height:1.7;margin:0 0 10px">나와 취향이 비슷한 다른 사용자들이 담은 곡을 추천해 드려요. 이를 위해 아래 내용에 대한 동의가 필요해요.</p>'
       +'<ul style="margin:0 0 4px 18px;padding:0;font-size:14px;line-height:1.75;color:var(--muted)">'
-      +'<li>추천 받기를 누르면 <b style="color:var(--fg)">곡명 · 아티스트 · 즐겨찾기 여부</b>가 익명 ID로 서버에 저장돼요.</li>'
+      +'<li>동의하면 익명 고유 ID가 만들어지고, 추천 받기를 누를 때 <b style="color:var(--fg)">곡명 · 아티스트 · 즐겨찾기 여부</b>가 익명 ID로 서버에 저장돼요.</li>'
       +'<li>감상 메모와 소개글은 올리지 않아요.</li>'
       +'<li>다른 사용자의 곡 목록은 볼 수 없고, 내 목록도 다른 사람에게 보이지 않아요.</li>'
       +'<li>취향 탭에서 언제든 참여를 해제하고 서버의 내 데이터를 지울 수 있어요.</li>'
@@ -1839,7 +1839,12 @@ function openNotice(){
     document.body.appendChild(notice);
     const later=()=>{st.asked=true;store();closeNotice();toast('취향 탭의 “다른 사용자들이 좋아한 곡”에서 언제든 참여할 수 있어요.')};
     $('#cf-no').onclick=later;
-    $('#cf-yes').onclick=()=>{st.consent=true;st.asked=true;store();closeNotice();draw();toast('참여했어요. 취향 탭에서 추천 받기를 눌러 보세요.')};
+    $('#cf-yes').onclick=async()=>{
+      const y=$('#cf-yes');y.disabled=true;y.textContent='ID 만드는 중…';
+      try{await session()}catch(e){y.disabled=false;y.textContent='동의하고 참여';toast('ID를 만들지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.');return}
+      st.consent=true;st.asked=true;store();closeNotice();draw();y.disabled=false;y.textContent='동의하고 참여';
+      toast('참여했어요. 고유 ID가 만들어졌어요. 설정 탭에서 확인할 수 있어요.');
+    };
     document.addEventListener('keydown',e=>{if(e.key==='Escape'&&notice.classList.contains('open'))later()});
   }
   notice.classList.add('open');
@@ -1880,6 +1885,7 @@ async function leave(){
   st.consent=false;ses=null;store();$('#cf-results').innerHTML='';draw();toast('참여를 해제하고 데이터를 지웠어요.');
 }
 draw();
+if(st.consent&&!ses)session().catch(()=>{}); // 이미 동의했는데 ID가 없으면 바로 만들어요
 if(!st.consent&&!st.asked)setTimeout(openNotice,600);
 })();
 </script>
