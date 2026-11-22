@@ -886,6 +886,7 @@ async function recommendSeparate(custom){
 // 그 합친 느낌에 가까운 곡을 찾아요. 여러 곡에 공통으로 걸리는 태그일수록 더 크게 반영돼요.
 let recFilterHook=l=>l; // 이미 등록된 곡 제외(아래쪽 스크립트에서 교체)
 const REC_JUNK=/^(seen live|favou?rites?|favou?rite .*|my .*|love|loved|awesome|good|great|best|beautiful|cool|amazing|albums? i own|under \d+ listeners|spotify|\d{2,4}s?)$/;
+const REC_GENERIC=new Set(['rock','pop','indie','alternative','alternative rock','indie rock','electronic','hip-hop','hip hop','rap','folk','soul','jazz','singer-songwriter','female vocalists','male vocalists','chill','mellow','experimental']);
 async function fullTags(artist,track){
   const out=new Map();
   const add=(list,k)=>{
@@ -893,7 +894,7 @@ async function fullTags(artist,track){
     L.slice(0,15).forEach(x=>{
       const n=String(x.name||'').toLowerCase().trim();
       if(!n||n.length>30||REC_JUNK.test(n))return;
-      const w=k*((Number(x.count)||0)/mx);
+      const w=k*((Number(x.count)||0)/mx)*(REC_GENERIC.has(n)?0.25:1);
       if(w>0)out.set(n,Math.max(out.get(n)||0,w));
     });
   };
@@ -905,51 +906,53 @@ const unitVec=m=>{const n=Math.sqrt([...m.values()].reduce((a,x)=>a+x*x,0))||1;c
 async function recommend(custom){
   const lib=new Set(songs.map(skey));
   const wshuffle=a=>a.map(x=>[Math.pow(Math.random(),1/recW(x)),x]).sort((p,q)=>q[0]-p[0]).map(x=>x[1]);
-  const seeds=custom||[...wshuffle(songs.filter(s=>s.fav)),...wshuffle(songs.filter(s=>!s.fav))].slice(0,12);
-  // 1) 곡마다 태그를 모은 뒤, 전부 합쳐서 하나의 '전체 느낌'으로 만들어요
+  const seeds=custom||[...wshuffle(songs.filter(s=>s.fav)),...wshuffle(songs.filter(s=>!s.fav))].slice(0,10);
+  // 1) 곡마다 태그를 모아 하나의 '전체 느낌'으로 합쳐요 (rock·pop처럼 너무 흔한 태그는 비중을 낮춰요)
   const vecs=await Promise.all(seeds.map(async sd=>({sd,v:unitVec(await fullTags(sd.artist,sd.title))})));
   const cen=new Map();
   vecs.forEach(({sd,v})=>{const w=(sd.fav?1.5:1)*(custom?1:recW(sd)/1.25);v.forEach((x,k)=>cen.set(k,(cen.get(k)||0)+x*w))});
   const feel=unitVec(cen);
   const topTags=[...feel.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
-  if(topTags.length<2){const r=await recommendSeparate(custom);r.feel=[];return r} // 태그 정보를 못 받으면 예전 방식으로
-  // 2) 합친 느낌의 상위 태그로 후보를 모아요 (여러 태그에 동시에 걸리는 곡이 높은 점수)
+  // 2) 후보는 '곡 단위 유사곡'에서만 모아요. 여러 곡과 동시에 비슷한 곡일수록 점수가 크게 올라가요
   const cand=new Map();
-  const put=(c,sc)=>{const k=skey(c);if(lib.has(k))return;const e=cand.get(k)||{title:c.title,artist:c.artist,score:0,seeds:[],hits:0};e.score+=sc;e.hits++;cand.set(k,e)};
-  await Promise.all(topTags.slice(0,6).map(async([tag,w])=>{
+  await Promise.all(seeds.map(async sd=>{
     try{
-      const d=await lfm('tag.getTopTracks',{tag,limit:'50'});
-      arr(d&&d.tracks&&d.tracks.track).forEach((t,i)=>{const a=t.artist&&(t.artist.name||t.artist);if(t.name&&typeof a==='string')put({title:t.name,artist:a},w*(1-i/60))});
+      (await getSimilar(sd.artist,sd.title)).forEach(c=>{
+        const k=skey(c);if(lib.has(k))return;
+        const e=cand.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0,seeds:[]};
+        e.sum+=(c.match||0.3);e.hits++;e.seeds.push(sd.title);cand.set(k,e);
+      });
     }catch(e){}
   }));
-  // 3) 보조 후보: 곡별 유사곡 중 여러 곡에 공통으로 나온 것만 가산점을 줘요
-  const simHit=new Map();
-  await Promise.all(seeds.slice(0,6).map(async sd=>{
-    try{(await getSimilar(sd.artist,sd.title)).forEach(c=>{const k=skey(c);simHit.set(k,(simHit.get(k)||0)+1);put(c,0.1*(c.match||0.3))})}catch(e){}
-  }));
   let list=recFilterHook([...cand.values()]);
-  list.forEach(c=>{const h=simHit.get(skey(c))||0;if(h>1)c.score+=0.15*(h-1)});
+  list.forEach(c=>{c.score=c.sum*(1+0.6*(c.hits-1))}); // 겹칠수록 가산
   const sorted=list.sort((a,b)=>b.score-a.score);
   const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
   let pool=fresh;if(fresh.length<12){recSeen.clear();pool=sorted}
   const top=pool.slice(0,30);
   if(!top.length)return [];
-  // 4) 후보의 태그를 가져와서 '전체 느낌'과 얼마나 가까운지 계산해요
-  for(let i=0;i<top.length;i+=6){
-    await Promise.all(top.slice(i,i+6).map(async c=>{try{c.vec=unitVec(await fullTags(c.artist,c.title))}catch(e){c.vec=new Map()}}));
+  // 3) 후보의 태그가 합친 느낌과 얼마나 가까운지로 한 번 더 걸러서 순서를 정해요
+  const noFeel=topTags.length<2;
+  if(!noFeel){
+    for(let i=0;i<top.length;i+=6){
+      await Promise.all(top.slice(i,i+6).map(async c=>{try{c.vec=unitVec(await fullTags(c.artist,c.title))}catch(e){c.vec=new Map()}}));
+    }
   }
   const maxS=Math.max(...top.map(c=>c.score),0.001);
   top.forEach(c=>{
     let cos=0;const shared=[];
-    c.vec.forEach((x,k)=>{const f=feel.get(k);if(f){cos+=x*f;shared.push([k,x*f])}});
+    if(!noFeel)c.vec.forEach((x,k)=>{const f=feel.get(k);if(f){cos+=x*f;shared.push([k,x*f])}});
     shared.sort((a,b)=>b[1]-a[1]);
-    c.final=0.6*Math.min(1,cos*1.6)+0.4*(c.score/maxS);
-    c.j=Math.random()*0.1;
+    const sim=c.score/maxS;
+    c.final=noFeel?sim:0.65*sim+0.35*Math.min(1,cos*1.6);
+    c.j=Math.random()*0.06;
     c.meta='추천 점수 '+Math.round(c.final*100);
-    c.reason=shared.length?'모아 둔 곡들의 전체 느낌과 닿아 있어요 · '+shared.slice(0,3).map(x=>x[0]).join(', '):'모아 둔 곡들의 전체 분위기와 비슷해요';
+    c.reason=(c.hits>1?'고른 곡 '+c.hits+'곡과 함께 닿아 있어요':'모아 둔 곡들의 전체 분위기와 비슷해요')+(shared.length?' · '+shared.slice(0,3).map(x=>x[0]).join(', '):'');
   });
-  const out=top.sort((a,b)=>(b.final+b.j)-(a.final+a.j));
-  out.feel=topTags.slice(0,6).map(x=>x[0]);
+  let out=top.sort((a,b)=>(b.final+b.j)-(a.final+a.j));
+  const best=out[0].final;
+  if(out.length>8)out=out.filter((c,i)=>i<8||c.final>=best*0.45); // 느낌이 많이 다른 곡은 빼요
+  out.feel=noFeel?[]:topTags.slice(0,6).map(x=>x[0]);
   return out;
 }
 const showFeel=(box,list)=>{
