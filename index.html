@@ -1766,7 +1766,7 @@ function show(m){
   $('#f-meta').value=m?JSON.stringify(m):'';
   if(!m){box.innerHTML='';return}
   const cells=[['BPM',m.bpm],['키',m.key?m.key+(m.camelot?' · '+m.camelot:''):null],['길이',dur(m.duration)],['행복도',pc(m.happiness)],['댄스',pc(m.danceability)],['에너지',pc(m.energy)],['어쿠스틱',pc(m.acousticness)],['악기 비율',pc(m.instrumentalness)],['라이브',pc(m.liveness)],['말하기',pc(m.speechiness)],['음량',m.loudness!=null?m.loudness.toFixed(1)+' dB':null],['성인 표시',m.explicit?'있음':null]].filter(c=>c[1]!=null&&c[1]!=='');
-  const tags=(m.tags||[]).map(t=>'<span>'+esc(t)+'</span>').join('');
+  const tags=(m.tags||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),'en',{sensitivity:'base'})).map(t=>'<span>'+esc(t)+'</span>').join('');
   box.innerHTML=(cells.length?'<div class="meta-grid">'+cells.map(c=>'<div class="meta-cell"><small>'+c[0]+'</small><b>'+esc(String(c[1]))+'</b></div>').join('')+'</div>':'')+(tags?'<div class="tag-cloud" style="margin-top:10px">'+tags+'</div>':'');
 }
 const dz=url=>new Promise(r=>jsonp(url,r));
@@ -2017,7 +2017,7 @@ function analyze(items,isToday){
   [...topN(G,3),...topN(T,8)].forEach(([w])=>{const l=String(w).toLowerCase();if(seen.has(l)||/^(seen live|\d{4}s?|favou?rites?)$/.test(l))return;seen.add(l);kw.push(w)});
   const pc=x=>x==null?null:Math.round(x*100);
   const bars=[['행복도',pc(v)],['에너지',pc(e)],['댄스',pc(dn)],['어쿠스틱',pc(ac)]].filter(b=>b[1]!=null);
-  return {head,sub:sub.join(' '),kw:kw.slice(0,6),bars,pend,
+  return {head,sub:sub.join(' '),kw:kw.slice(0,6).sort((a,b)=>String(a).localeCompare(String(b),'en',{sensitivity:'base'})),bars,pend,
     stat:`곡 ${sN}${aN?' · 앨범 '+aN:''} · 아티스트 ${Object.keys(A).length}`};
 }
 
