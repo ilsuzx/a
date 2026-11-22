@@ -1839,6 +1839,7 @@ show(null);
 .dc-art{position:absolute;inset:0;display:grid;place-items:center;background:#e4e4e1}
 .dc-art img{width:100%;height:100%;object-fit:cover}.dc-art .placeholder{font-size:20px}
 .dcount{position:absolute;right:6px;bottom:5px;z-index:2;color:#fff;font-size:11px;font-style:normal;font-weight:600;text-shadow:0 1px 4px #0009}
+.dc:focus,.dc:focus-visible,.dc:active{outline:none!important;box-shadow:none!important}
 .dc.today .dn{color:var(--fg)}
 .dc.today.has .dn{color:#fff}
 .dc.blank{visibility:hidden;pointer-events:none}
@@ -1923,7 +1924,7 @@ document.querySelector('.wrap').insertAdjacentHTML('beforeend',`
 document.body.insertAdjacentHTML('beforeend',`
 <div class="modal-backdrop" id="daily-modal"><div class="modal">
   <div class="modal-head"><h2 id="daily-modal-title"></h2><button class="close" id="daily-close">×</button></div>
-  <div class="seg" id="daily-kind" role="group" aria-label="종류"><button type="button" data-kind="song" class="on">곡 하나</button><button type="button" data-kind="album">앨범 통째로</button></div>
+  <div class="seg" id="daily-kind" role="group" aria-label="종류"><button type="button" data-kind="song" class="on">곡</button><button type="button" data-kind="album">앨범</button></div>
   <div class="api-search-line"><input id="daily-query" placeholder="곡명 또는 아티스트 검색" autocomplete="off"><button type="button" class="btn small" id="daily-search">검색</button></div>
   <div class="api-results" id="daily-results"></div>
   <div class="modal-actions"><span class="pk-note">여러 곡을 계속 추가할 수 있어요.</span><button type="button" class="btn" id="daily-done">완료</button></div>
@@ -2182,6 +2183,7 @@ function paint(){
   const seen=new Set(lib.map(x=>nz(x.title)+'|'+nz(x.artist)));
   const c=cat.filter(x=>{const k=nz(x.title)+'|'+nz(x.artist);if(seen.has(k))return false;seen.add(k);return true});
   pool=lib.concat(c);
+  if(!q){$('#daily-results').innerHTML='';syncPlay();return}
   let h=`<div class="daily-sec">${q?label:label+' · 최근 추가'}</div>`+(lib.length?rows(lib,0):`<div class="api-hint">일치하는 ${kind==='song'?'곡':'앨범'}이 없어요.</div>`);
   if(catState==='loading')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-status">카탈로그에서 검색하고 있어요…</div>';
   else if(catState==='error')h+='<div class="daily-sec">음악 카탈로그</div><div class="api-hint">음악 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.</div>';
