@@ -457,7 +457,7 @@ player.addEventListener('error',async()=>{
   prevTried=s.preview;
   const u=await freshPreviewUrl(s.title,s.artist);
   if(playingId!==id)return;
-  if(!u){toast('미리듣기를 불러오지 못했어요.');refreshRows();return}
+  if(!u){toast('이 곡의 미리듣기를 새로 찾지 못했어요. 검색 결과에서 다시 추가하면 될 수 있어요.');refreshRows();return}
   const bad=s.preview;songs.forEach(x=>{if(x.preview===bad)x.preview=u});prevTried=u;
   try{save()}catch(e){}
   player.src=u;player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));refreshRows();
@@ -491,16 +491,36 @@ function deezerSearch(term,type,onDone,limit){
     onDone({results});
   });
 }
-// 저장해 둔 미리듣기 주소는 시간이 지나면 만료돼서, 곡 정보로 새 주소를 다시 찾아요.
+// 저장해 둔 미리듣기 주소는 시간이 지나면 만료돼서, 곡 정보로 새 주소를 다시 찾아요. (Deezer → Apple 순서, 표기가 조금 달라도 찾아요)
 async function freshPreviewUrl(title,artist){
-  const n=v=>String(v||'').toLowerCase().replace(/\s+/g,''),q=v=>String(v||'').replace(/"/g,'');
-  const t=n(title),a=n(artist);
-  for(const term of ['artist:"'+q(artist)+'" track:"'+q(title)+'"',q(title)+' '+q(artist)]){
-    const d=await new Promise(r=>deezerSearch(term,'song',r,15));
-    const hit=((d&&d.results)||[]).find(x=>x.previewUrl&&n(x.trackName)===t&&(n(x.artistName).includes(a)||a.includes(n(x.artistName))));
-    if(hit)return hit.previewUrl;
+  const norm=v=>String(v||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+  const core=v=>norm(String(v||'').replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–]\s.*$/,''));
+  const q=v=>String(v||'').replace(/"/g,'');
+  const tn=core(title)||norm(title),an=norm(artist);
+  const score=x=>{
+    if(!x||!x.previewUrl||!x.trackName)return 0;
+    const xt=core(x.trackName)||norm(x.trackName),xa=norm(x.artistName);
+    const artistOk=!an||!xa||xa.includes(an)||an.includes(xa);
+    if(!artistOk)return 0;
+    if(xt===tn)return 3;
+    if(tn.length>=2&&xt.length>=2&&(xt.includes(tn)||tn.includes(xt)))return 1;
+    return 0;
+  };
+  const best=list=>{let top=null,sc=0;for(const x of list||[]){const v=score(x);if(v>sc){sc=v;top=x}}return top?{url:top.previewUrl,sc}:null};
+  let fallback=null;
+  for(const term of ['artist:"'+q(artist)+'" track:"'+q(title)+'"',q(title)+' '+q(artist),q(title)]){
+    const d=await new Promise(r=>deezerSearch(term,'song',r,25));
+    const h=best(d&&d.results);
+    if(h&&h.sc===3)return h.url;
+    if(h&&!fallback)fallback=h.url;
   }
-  return '';
+  try{
+    const d=await new Promise(r=>appleSearch(q(title)+' '+q(artist),'song',r));
+    const h=best(d&&d.results);
+    if(h&&h.sc===3)return h.url;
+    if(h&&!fallback)fallback=h.url;
+  }catch(e){}
+  return fallback||'';
 }
 const appleEndpoint=(term,entity,country,attr)=>'https://itunes.apple.com/search?'+new URLSearchParams(Object.assign({term,country,media:'music',entity,limit:'50'},attr?{attribute:attr}:{})).toString();
 async function fetchApple(ep){
@@ -2009,7 +2029,7 @@ aud.addEventListener('error',async()=>{
   if(!ref){fail();return}
   const u=await freshPreviewUrl(ref.title,ref.artist);
   if(playingSrc!==bad)return;
-  if(!u){fail();return}
+  if(!u){toast('이 곡의 미리듣기를 새로 찾지 못했어요. 검색 결과에서 다시 추가하면 될 수 있어요.');playingSrc='';syncPlay();return}
   for(const k in daily)daily[k].items.forEach(i=>{if(i.preview===bad)i.preview=u});
   songs.forEach(x=>{if(x.preview===bad)x.preview=u});
   dTried=u;playingSrc=u;
