@@ -176,7 +176,7 @@ h1{font-size:30px}
 <section class="page" id="page-taste">
   <div class="head"><div><h1>취향</h1><p class="taste-text" id="taste-copy"></p></div></div>
   <div class="block"><div class="glance" id="glance"></div></div>
-  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><p class="taste-text" style="margin:0 0 12px;font-size:13px">저장한 곡(3곡 이상)의 분위기와 장르를 하나로 합친 뒤, 그 전체 느낌과 가까운 곡을 찾아서 보여줘요. '곡 직접 고르기'로 원하는 곡 최대 3개만 합쳐서 기준으로 삼을 수도 있어요.</p><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
+  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
   <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
@@ -1772,7 +1772,7 @@ const SB_KEY='sb_publishable_7x-4bNtlttqqEfKjpT0i2Q_psJndfUa';
 const CF_MIN=2;    // 이 인원 이상이 담은 곡만 추천 (혼자 테스트할 땐 1)
 if(!SB_URL||!SB_KEY)return;
 const anchor=$('#rec-body').closest('.block');
-anchor.insertAdjacentHTML('afterend',`<div class="block" id="cf-block"><div class="head" style="margin-bottom:8px"><h2>다른 사용자들이 좋아한 곡</h2><div id="cf-actions" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"></div></div><div id="cf-id" style="margin:0 0 10px;font-size:12px;color:var(--muted)"></div><div id="cf-consent"></div><div class="api-results" id="cf-results" style="max-height:none"></div></div>`);
+anchor.insertAdjacentHTML('afterend',`<div class="block" id="cf-block"><div class="head" style="margin-bottom:8px"><h2>다른 사용자들이 좋아한 곡</h2><div id="cf-actions" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"></div></div><div id="cf-consent"></div><div class="api-results" id="cf-results" style="max-height:none"></div></div>`);
 const st=read('aftertone_cf',{consent:false});let ses=read('aftertone_sb',null);
 const store=()=>{try{localStorage.setItem('aftertone_cf',JSON.stringify(st));if(ses)localStorage.setItem('aftertone_sb',JSON.stringify(ses));else localStorage.removeItem('aftertone_sb')}catch(e){}};
 async function sb(path,o){
