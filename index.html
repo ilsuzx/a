@@ -201,6 +201,7 @@ h1{font-size:30px}
   <div class="head"><h1>소개</h1><button class="btn secondary" id="edit-profile">소개 수정</button></div>
   <p id="about-text"></p>
   <div class="backup" id="uid-box"><h2>내 고유 ID</h2><div id="uid-body"></div></div>
+  <div class="backup" id="blocked-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">추천 차단한 곡 <span class="taste-text" id="blocked-count" style="font-size:13px"></span></h2><button class="btn ghost small" id="blocked-clear">모두 해제</button></div><p>추천 목록에서 ‘차단’을 누른 곡이에요. 이 곡들은 추천과 비슷한 곡에 다시 나오지 않아요.</p><div class="song-list" id="blocked-list"></div></div>
   <div class="backup"><h2>백업과 복원</h2><p>데이터는 이 브라우저에만 저장돼요. 파일로 내보내 두면 기기를 바꾸거나 캐시를 지워도 복원할 수 있어요.</p><div class="backup-actions"><button class="btn" id="export-btn">내보내기</button><button class="btn secondary" id="import-merge">가져오기 (합치기)</button><button class="btn secondary" id="import-replace">가져오기 (덮어쓰기)</button></div><input type="file" id="import-file" accept=".json,application/json" style="display:none"></div>
 </section>
 </div>
@@ -263,7 +264,7 @@ h1{font-size:30px}
 const $=s=>document.querySelector(s);
 const read=(k,fb)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??fb}catch{return fb}};
 const DEFAULT_PROFILE='AFTERTONE은 내가 좋아하는 음악을 모으고, 그 안에서 나만의 취향을 발견하기 위해 만든 개인 음악 아카이브입니다. 노래 한 곡과 앨범 한 장에 담긴 기억과 감정을 차곡차곡 기록합니다.';
-let songs=read('aftertone_songs',[]),albums=read('aftertone_albums',[]),manualTags=read('aftertone_tags',[]),profile=read('aftertone_profile',DEFAULT_PROFILE),randomKind='song',skipped=read('aftertone_skipped',[]);
+let songs=read('aftertone_songs',[]),albums=read('aftertone_albums',[]),manualTags=read('aftertone_tags',[]),profile=read('aftertone_profile',DEFAULT_PROFILE),randomKind='song',skipped=read('aftertone_skipped',[]),blocked=read('aftertone_blocked',[]);
 songs.forEach(s=>{s.fav=!!s.fav});
 let daily=read('aftertone_daily',{});
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2));
@@ -283,7 +284,7 @@ function normDaily(o){
   return r;
 }
 daily=normDaily(daily);
-const save=()=>{try{localStorage.setItem('aftertone_songs',JSON.stringify(songs));localStorage.setItem('aftertone_albums',JSON.stringify(albums));localStorage.setItem('aftertone_tags',JSON.stringify(manualTags));localStorage.setItem('aftertone_profile',JSON.stringify(profile));localStorage.setItem('aftertone_skipped',JSON.stringify(skipped));localStorage.setItem('aftertone_daily',JSON.stringify(daily))}catch(e){toast('저장 공간을 사용할 수 없어 변경 사항이 유지되지 않을 수 있어요.')}};
+const save=()=>{try{localStorage.setItem('aftertone_songs',JSON.stringify(songs));localStorage.setItem('aftertone_albums',JSON.stringify(albums));localStorage.setItem('aftertone_tags',JSON.stringify(manualTags));localStorage.setItem('aftertone_profile',JSON.stringify(profile));localStorage.setItem('aftertone_skipped',JSON.stringify(skipped));localStorage.setItem('aftertone_blocked',JSON.stringify(blocked));localStorage.setItem('aftertone_daily',JSON.stringify(daily))}catch(e){toast('저장 공간을 사용할 수 없어 변경 사항이 유지되지 않을 수 있어요.')}};
 if(songs.some(s=>'lyrics' in s||'mood' in s||'bpm' in s||'dur' in s)){songs.forEach(s=>{delete s.lyrics;delete s.mood;delete s.bpm;delete s.dur});save()}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PH='<span class="placeholder">♫</span>';
@@ -398,7 +399,7 @@ const normSong=x=>({id:str(x.id)||uid(),title:str(x.title),artist:str(x.artist),
 const normAlbum=x=>({id:str(x.id)||uid(),title:str(x.title),artist:str(x.artist),year:str(x.year),genre:str(x.genre),cover:str(x.cover),note:str(x.note),intro:str(x.intro),info:str(x.info),srcName:str(x.srcName),srcUrl:str(x.srcUrl),dzId:str(x.dzId),created:Number(x.created)||Date.now()});
 const skey=x=>(x.title+'|'+x.artist).toLowerCase();
 function exportData(){
-  const data={app:'aftertone',version:2,exported:new Date().toISOString(),songs,albums,tags:manualTags,skipped,profile,daily};
+  const data={app:'aftertone',version:2,exported:new Date().toISOString(),songs,albums,tags:manualTags,skipped,blocked,profile,daily};
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='aftertone-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),1500);try{localStorage.setItem('aftertone_lastexport',Date.now())}catch{}toast(`곡 ${songs.length} · 앨범 ${albums.length}개를 내보냈어요.`)}
@@ -410,7 +411,7 @@ function importData(text){
   const T=Array.isArray(d.tags)?d.tags.map(str).filter(Boolean):[],D=normDaily(d.daily);
   if(importMode==='replace'){
     if(!confirm(`현재 데이터를 지우고 백업 파일(곡 ${S.length}, 앨범 ${A.length})로 덮어쓸까요?`))return;
-    songs=S;albums=A;manualTags=T;skipped=Array.isArray(d.skipped)?d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum):[];if(typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
+    songs=S;albums=A;manualTags=T;blocked=Array.isArray(d.blocked)?d.blocked.filter(x=>x&&x.title&&x.artist).map(x=>({id:String(x.id||uid()),title:String(x.title),artist:String(x.artist),cover:String(x.cover||''),created:Number(x.created)||Date.now()})):[];skipped=Array.isArray(d.skipped)?d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum):[];if(typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
     if(Object.keys(D).length)daily=D;
     save();render();toast(`복원 완료: 곡 ${S.length} · 앨범 ${A.length}개`);return}
   const sk=new Set(songs.map(skey)),ak=new Set(albums.map(skey)),ids=new Set([...songs,...albums].map(x=>x.id));
@@ -419,6 +420,7 @@ function importData(text){
   A.forEach(x=>{if(ak.has(skey(x)))return;if(ids.has(x.id))x.id=uid();ids.add(x.id);ak.add(skey(x));albums.push(x);na++});
   songs.sort((a,b)=>b.created-a.created);albums.sort((a,b)=>b.created-a.created);
   manualTags=[...new Set([...manualTags,...T])];
+  if(Array.isArray(d.blocked)){const bk2=new Set(blocked.map(skey));d.blocked.filter(x=>x&&x.title&&x.artist).forEach(x=>{if(!bk2.has(skey(x))){bk2.add(skey(x));blocked.push({id:String(x.id||uid()),title:String(x.title),artist:String(x.artist),cover:String(x.cover||''),created:Number(x.created)||Date.now()})}})}
   if(Array.isArray(d.skipped)){const sk2=new Set(skipped.map(skey));d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum).forEach(x=>{if(!sk2.has(skey(x))){sk2.add(skey(x));skipped.push(x)}})}
   if(profile===DEFAULT_PROFILE&&typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
   let nd=0;Object.keys(D).forEach(k=>{
@@ -778,7 +780,7 @@ function enrichRecs(container,list,opt){
       if(container._list!==list||!data||data.error)return;
       const best=(data.results||[]).find(x=>{if(!x.trackName||!x.previewUrl)return false;const a=recNorm(x.artistName),b=recNorm(c.artist);return a&&b&&(a.includes(b)||b.includes(a))});
       if(!best||shown>=cap)return;
-      if(recRegHook({title:best.trackName,artist:best.artistName}))return; // 표기가 달라 걸러지지 않은, 이미 등록된 곡
+      if(recRegHook(c)||recRegHook({title:best.trackName,artist:best.artistName}))return; // 표기가 달라 걸러지지 않은, 이미 등록된 곡
       shown++;
       c.cover=best.artworkUrl100||best.artworkUrl60||best._cover||'';c.preview=best.previewUrl;
       const row=container.querySelector('[data-row="'+list.indexOf(c)+'"]');if(!row)return;
@@ -791,14 +793,17 @@ function enrichRecs(container,list,opt){
   };
   (async()=>{for(let k=0;k<list.length;k+=4)await Promise.all(list.slice(k,k+4).map(task))})();
 }
+const recBoxes=new Set();
 function renderRecList(container,list,opt){
   opt=opt||{};
   container._list=list;container._opt=opt;container._page=0;
   list.forEach(c=>{c._modal=container.id==='sim-results'});
   container.innerHTML='<div class="api-status rec-loading">미리듣기 가능한 곡을 확인하고 있어요…</div>'
-    +list.map((c,i)=>`<div class="api-result" data-row="${i}" style="display:none"><div class="mini-cover">${PH}</div><div class="api-result-info"><strong>${esc(c.title)}</strong><span>${esc(c.artist)}${c.meta?' · '+esc(c.meta):''}</span>${c.reason?`<span style="white-space:normal">${esc(c.reason)}</span>`:''}</div><button type="button" class="rec-play" data-play="${i}" style="display:none" aria-label="미리듣기">▶</button><div class="api-result-actions"><button type="button" data-add="${i}">추가</button></div></div>`).join('')
+    +list.map((c,i)=>`<div class="api-result" data-row="${i}" style="display:none"><div class="mini-cover">${PH}</div><div class="api-result-info"><strong>${esc(c.title)}</strong><span>${esc(c.artist)}${c.meta?' · '+esc(c.meta):''}</span>${c.reason?`<span style="white-space:normal">${esc(c.reason)}</span>`:''}</div><button type="button" class="rec-play" data-play="${i}" style="display:none" aria-label="미리듣기">▶</button><div class="api-result-actions"><button type="button" data-add="${i}">추가</button><button type="button" class="rec-block" data-block="${i}" title="이 곡 더 이상 추천 안 받기" aria-label="이 곡 더 이상 추천 안 받기" style="background:transparent;color:var(--muted,#888);border:1px solid var(--line,#ddd);margin-left:6px">차단</button></div></div>`).join('')
     +'<div class="rec-pager" style="display:none"><button type="button" class="btn secondary small" data-pg="-1" aria-label="이전 페이지">‹</button><span></span><button type="button" class="btn secondary small" data-pg="1" aria-label="다음 페이지">›</button></div>';
   container.querySelectorAll('[data-add]').forEach(b=>b.addEventListener('click',()=>addRecommended(list[Number(b.dataset.add)])));
+  recBoxes.add(container);
+  container.querySelectorAll('[data-block]').forEach(b=>b.addEventListener('click',()=>blockRec(list[Number(b.dataset.block)])));
   container.querySelectorAll('[data-play]').forEach(b=>{b._item=list[Number(b.dataset.play)];b.addEventListener('click',()=>toggleRecPlay(b._item))});
   container.querySelectorAll('[data-pg]').forEach(b=>b.addEventListener('click',()=>{container._page=(container._page||0)+Number(b.dataset.pg);recPage(container)}));
   enrichRecs(container,list,opt);
@@ -1316,7 +1321,12 @@ function regIndex(){
 }
 const hasHangul=s=>/[가-힣]/.test(String(s||'')),hasLatin=s=>/[a-z]/i.test(String(s||''));
 const artistTokens=s=>String(s||'').toLowerCase().split(/[,&/×x·;]|\sfeat\.?\s|\sft\.?\s|\swith\s/).map(recNorm).filter(Boolean);
+const isBlocked=c=>{
+  const k=normTitle(c.title),a=recNorm(c.artist);
+  return blocked.some(b=>{if(normTitle(b.title)!==k)return false;const x=recNorm(b.artist);return !x||!a||x===a||x.includes(a)||a.includes(x)||artistTokens(c.artist).some(t=>x.includes(t)||t.includes(x))});
+};
 const isRegistered=(c,idx)=>{
+  if(isBlocked(c))return true;
   const arts=idx.get(normTitle(c.title));if(!arts)return false;
   const ca=artistTokens(c.artist),a=recNorm(c.artist);
   return arts.some(x=>{
@@ -1336,10 +1346,36 @@ getSimilar=async function(artist,track,limit){
 recFilterHook=list=>{const idx=regIndex();return list.filter(c=>!isRegistered(c,idx))};
 recRegHook=c=>isRegistered(c,regIndex());
 
+
+// ---------- 곡 차단 (더 이상 추천 안 받기) ----------
+function blockRec(c){
+  if(!c||isBlocked(c))return;
+  const item={id:uid(),title:c.title,artist:c.artist,cover:c.cover||'',created:Date.now()};
+  blocked.unshift(item);save();render();
+  undoToast('이 곡은 더 이상 추천하지 않아요.',()=>{blocked=blocked.filter(x=>x.id!==item.id);save();render()});
+}
+function unblockSong(id){
+  const i=blocked.findIndex(x=>x.id===id);if(i<0)return;
+  const x=blocked.splice(i,1)[0];save();render();
+  undoToast('차단을 해제했어요.',()=>{blocked.splice(Math.min(i,blocked.length),0,x);save();render()});
+}
+function renderBlocked(){
+  const box=$('#blocked-list');if(!box)return;
+  $('#blocked-count').textContent=blocked.length?`${blocked.length}곡`:'';
+  box.innerHTML=blocked.map(x=>`<div class="song-row"><div class="mini-cover">${cover(x.cover)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}</span></div><div class="row-actions"><button class="btn secondary small" onclick="unblockSong('${x.id}')">차단 해제</button></div></div>`).join('')||'<div class="empty"><b>차단한 곡이 없어요</b>추천 목록에서 \'차단\'을 누르면 여기에 모여요.</div>';
+}
+$('#blocked-clear').onclick=()=>{if(!blocked.length)return;const b=blocked.slice();if(!confirm(`차단한 ${b.length}곡을 모두 해제할까요?`))return;blocked=[];save();render();undoToast('차단을 모두 해제했어요.',()=>{blocked=b;save();render()})};
+
+// ---------- 탭 이동 시 추천 미리듣기 정지 ----------
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{
+  try{recAudio.pause();recPlaying=null;syncRecButtons()}catch(e){}
+  try{mAud.pause();mSync()}catch(e){}
+}));
+
 // ---------- render 연결 ----------
 function pruneRegisteredRecs(){
   const idx=regIndex();
-  document.querySelectorAll('#rec-results,#sim-results').forEach(box=>{
+  [...recBoxes].filter(b=>document.contains(b)).forEach(box=>{
     const list=box._list;if(!list)return;
     let changed=false;
     box.querySelectorAll('[data-row]').forEach(row=>{
@@ -1350,7 +1386,7 @@ function pruneRegisteredRecs(){
   });
 }
 const _render=render;
-render=function(){_render();try{pruneRegisteredRecs()}catch(e){}
+render=function(){_render();try{renderBlocked();pruneRegisteredRecs()}catch(e){}
   if($('#xd-modal').classList.contains('open'))drawDetail();
   updateBar()};
 render();
