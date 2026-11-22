@@ -455,7 +455,6 @@ $('#mini-seek').addEventListener('input',e=>{const d=player.duration||30;player.
 $('#mini-toggle').onclick=()=>playingId&&playSong(playingId);
 $('#mini-close').onclick=stopPlayer;
 document.addEventListener('keydown',e=>{if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!document.querySelector('.modal-backdrop.open')){e.preventDefault();go('songs');$('#song-search').focus()}});
-setTimeout(()=>{try{const last=+localStorage.getItem('aftertone_lastexport')||0;if(songs.length>=5&&Date.now()-last>30*864e5)toast('백업한 지 오래됐어요. ABOUT에서 JSON으로 내보내 두세요.')}catch{}},600);
 
 // ===== 음악 검색: Deezer(기본) + Apple iTunes(보충) =====
 // Apple 한국 스토어 검색이 빈 결과를 줄 때를 대비해 Deezer를 먼저 사용합니다.
@@ -1887,6 +1886,10 @@ show(null);
 .tt-row .mini-cover{width:40px;height:40px}
 .daily-sec{font-size:12px;font-weight:600;color:var(--muted);padding:12px 2px 6px;letter-spacing:.03em}
 #daily-modal .seg{display:inline-flex;margin-bottom:12px}
+#day-panel .tt-opt{display:flex;align-items:center;gap:10px;margin:14px 0 0;font-size:13px;color:var(--muted)}
+.tt-sw{width:36px;height:20px;border-radius:999px;border:0;background:#d6d6d3;position:relative;padding:0;transition:background .15s}
+.tt-sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.tt-sw.on{background:var(--fg)}.tt-sw.on i{transform:translateX(16px)}
 #daily-results .dpager{display:flex;align-items:center;justify-content:center;gap:14px;padding:10px 0 2px;font-size:13px;color:var(--muted)}
 #daily-results .dpager button{border:0;background:none;font-size:20px;line-height:1;padding:4px 12px;color:var(--fg);border-radius:6px}
 #daily-results .dpager button:hover:not(:disabled){background:var(--soft)}
@@ -1919,6 +1922,7 @@ const hhmm=t=>{const d=new Date(t);return pad(d.getHours())+':'+pad(d.getMinutes
 const parseKey=k=>k.split('-').map(Number);
 const n0=new Date();let view={y:n0.getFullYear(),m:n0.getMonth()},sel=todayKey();
 const pendingMeta=new Set();
+let ttOn=true;try{ttOn=localStorage.getItem('aftertone_tt')!=='0'}catch(e){}
 
 // ---------- 탭/페이지: 달력이 첫 화면 ----------
 document.querySelector('[data-page="songs"]').classList.remove('active');
@@ -2038,17 +2042,18 @@ function renderDaily(){
 }
 function renderPanel(){
   const day=daily[sel],items=day?day.items:[],[y,m,d]=parseKey(sel),w=new Date(y,m-1,d).getDay(),isToday=sel===todayKey();
-  let h=`<div class="dp-top"><div><h2>${m}월 ${d}일</h2><span>${y}년 · ${DOW[w]}요일${isToday?' · 오늘':''}</span></div><button class="btn" id="dp-add">＋ 곡·앨범 추가</button></div>`;
+  let h=`<div class="dp-top"><div><h2>${m}월 ${d}일</h2><span>${y}년 · ${DOW[w]}요일${isToday?' · 오늘':''}</span></div><button class="btn" id="dp-add">＋ 곡·앨범 추가</button></div><div class="tt-opt"><button type="button" class="tt-sw${ttOn?' on':''}" id="tt-toggle" role="switch" aria-checked="${ttOn}" aria-label="타임테이블 사용"><i></i></button><span>타임테이블 ${ttOn?'ON':'OFF'}</span></div>`;
   if(!items.length)h+=`<div class="dp-empty"><b>아직 기록이 없어요</b>${isToday?'오늘 들은 음악을 남겨 보세요.':'이 날 들은 음악을 남겨 보세요.'}</div>`;
   else{
     const rep=repOf(day),a=analyze(items,isToday);
     h+=`<div class="dp-hero"><div class="tc-art">${cover(rep.cover)}</div><div class="tc-info"><small>${isToday?'오늘의':'이날의'} 대표곡${rep.kind==='album'?' · 앨범':''}</small><strong>${esc(rep.title)}</strong><span>${esc(rep.artist)}${rep.kind==='song'&&rep.album?' · '+esc(rep.album):''}</span></div>${playBtn(rep.preview)}</div>`;
     h+=a.kw.length?`<div class="dp-ana"><div class="ana-chips">${a.kw.map(k=>`<span>${esc(k)}</span>`).join('')}</div></div>`:'';
-    h+=`<div class="tt-title"><b>타임테이블</b><span>${items.length}개 기록 · ★ 대표곡</span></div><div class="tt">`
-      +items.map(it=>{const on=it.id===rep.id;return `<div class="tt-row${on?' rep':''}" data-id="${it.id}"><input class="tt-time" type="time" value="${hhmm(it.t)}" aria-label="기록 시간"><div class="mini-cover">${cover(it.cover)}</div><div class="tt-meta"><strong>${esc(it.title)}</strong><span>${it.kind==='album'?'앨범 · ':''}${esc(it.artist)}${it.kind==='song'&&it.album?' · '+esc(it.album):''}</span></div><div class="row-actions">${playBtn(it.preview)}<button class="icon-btn tt-star${on?' on':''}" data-star title="대표곡으로 설정" aria-label="대표곡으로 설정">${on?'★':'☆'}</button><button class="icon-btn" data-del title="삭제" aria-label="삭제">×</button></div></div>`}).join('')+`</div>`;
+    h+=`<div class="tt-title"><b>${ttOn?'타임테이블':'기록'}</b><span>${items.length}개 기록 · ★ 대표곡</span></div><div class="tt">`
+      +items.map(it=>{const on=it.id===rep.id;return `<div class="tt-row${on?' rep':''}" data-id="${it.id}">${ttOn?`<input class="tt-time" type="time" value="${hhmm(it.t)}" aria-label="기록 시간">`:''}<div class="mini-cover">${cover(it.cover)}</div><div class="tt-meta"><strong>${esc(it.title)}</strong><span>${it.kind==='album'?'앨범 · ':''}${esc(it.artist)}${it.kind==='song'&&it.album?' · '+esc(it.album):''}</span></div><div class="row-actions">${playBtn(it.preview)}<button class="icon-btn tt-star${on?' on':''}" data-star title="대표곡으로 설정" aria-label="대표곡으로 설정">${on?'★':'☆'}</button><button class="icon-btn" data-del title="삭제" aria-label="삭제">×</button></div></div>`}).join('')+`</div>`;
   }
   $('#day-panel').innerHTML=h;
 }
+$('#day-panel').addEventListener('click',e=>{if(!e.target.closest('#tt-toggle'))return;ttOn=!ttOn;try{localStorage.setItem('aftertone_tt',ttOn?'1':'0')}catch(err){}renderPanel()});
 const _render=window.render;
 window.render=function(){_render.apply(this,arguments);renderDaily()};
 
