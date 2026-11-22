@@ -178,8 +178,6 @@ h1{font-size:30px}
   <div class="block"><div class="glance" id="glance"></div></div>
   <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><p class="taste-text" style="margin:0 0 12px;font-size:13px">저장한 곡(3곡 이상)의 분위기와 장르를 하나로 합친 뒤, 그 전체 느낌과 가까운 곡을 찾아서 보여줘요. '곡 직접 고르기'로 원하는 곡 최대 3개만 합쳐서 기준으로 삼을 수도 있어요.</p><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
   <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
-  <div class="block"><h2>발매 연도</h2><div id="year-chart"></div></div>
-  <div class="block"><h2>자주 듣는 아티스트</h2><div id="artist-bars"></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
   <h2 id="taste-headline" style="display:none"></h2>
@@ -359,7 +357,6 @@ function counts(values){const c={};values.filter(Boolean).forEach(v=>v.split(','
 function bars(items){if(!items.length)return '<div class="empty">아직 분석할 데이터가 부족합니다.</div>';const max=items[0][1];return items.slice(0,6).map(([name,n])=>`<div class="bar-item"><div class="bar-label"><span>${esc(name)}</span><span>${n}</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div>`).join('')}
 function renderTaste(){
   const genres=counts(songs.map(s=>s.genre)),sounds=counts(songs.map(s=>s.sound)),artists=counts(songs.map(s=>s.artist));
-  $('#artist-bars').innerHTML=bars(artists);
   $('#sound-tags').innerHTML=sounds.length?sounds.map(x=>`<span>${esc(x[0])}</span>`).join(''):'<span>사운드 특징을 입력해 보세요</span>';
   if(songs.length){const top=genres[0]?.[0]||'다양한 장르',sound=sounds[0]?.[0]||'여러 사운드';
     $('#taste-headline').textContent=`${top} 취향이 가장 많아요.`;
@@ -387,7 +384,6 @@ const SHADES=['#111','#444','#777','#999','#bbb','#d3d3d3','#e6e6e6'];
 function renderCharts(){
   const years={};songs.forEach(s=>{const y=parseInt(s.year);if(y>=1900&&y<=2100)years[y]=(years[y]||0)+1});
   const ys=Object.keys(years).map(Number).sort((a,b)=>a-b).slice(-12),maxY=Math.max(1,...ys.map(y=>years[y]));
-  $('#year-chart').innerHTML=ys.length?`<div class="ycols">${ys.map(y=>`<div class="ycol" title="${y}: ${years[y]}곡"><b>${years[y]}</b><i style="height:${years[y]/maxY*100*0.72}%"></i><span>${String(y).slice(2)}'</span></div>`).join('')}</div>`:'<div class="empty">발매 연도가 입력된 곡이 없어요.</div>';
   const g=counts(songs.map(s=>s.genre)),total=g.reduce((a,x)=>a+x[1],0);
   if(!total)$('#genre-donut').innerHTML='<div class="empty">장르가 입력된 곡이 없어요.</div>';
   else{let top=g.slice(0,6),rest=g.slice(6).reduce((a,x)=>a+x[1],0);if(rest)top=[...top,['기타',rest]];
@@ -1227,10 +1223,8 @@ function drawDetail(){
 }
 $('#page-taste').addEventListener('click',e=>{
   let t;
-  if(t=e.target.closest('#artist-bars .bar-item')){const v=t.querySelector('.bar-label span').textContent;openDetail('artist',v,v);return}
   if(t=e.target.closest('#sound-tags span')){const v=t.textContent;if(songs.some(s=>M.sound(s,v)))openDetail('sound',v,v);return}
   if(t=e.target.closest('#genre-donut .legend div')){const n=[...t.childNodes].find(x=>x.nodeType===3);if(n)openDetail('genre',n.textContent,n.textContent);return}
-  if(t=e.target.closest('#year-chart .ycol')){const y=parseInt(t.title);if(y)openDetail('year',y,y+'년');return}
 });
 
 // ---------- 다중 선택 일괄 편집 ----------
