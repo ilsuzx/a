@@ -778,6 +778,7 @@ function enrichRecs(container,list,opt){
       if(container._list!==list||!data||data.error)return;
       const best=(data.results||[]).find(x=>{if(!x.trackName||!x.previewUrl)return false;const a=recNorm(x.artistName),b=recNorm(c.artist);return a&&b&&(a.includes(b)||b.includes(a))});
       if(!best||shown>=cap)return;
+      if(recRegHook({title:best.trackName,artist:best.artistName}))return; // 표기가 달라 걸러지지 않은, 이미 등록된 곡
       shown++;
       c.cover=best.artworkUrl100||best.artworkUrl60||best._cover||'';c.preview=best.previewUrl;
       const row=container.querySelector('[data-row="'+list.indexOf(c)+'"]');if(!row)return;
@@ -906,6 +907,7 @@ async function recommendSeparate(custom){
 // 곡마다 따로 "비슷한 곡"을 찾지 않고, 고른 곡들의 태그(분위기·장르)를 하나로 합친 뒤
 // 그 합친 느낌에 가까운 곡을 찾아요. 여러 곡에 공통으로 걸리는 태그일수록 더 크게 반영돼요.
 let recFilterHook=l=>l; // 이미 등록된 곡 제외(아래쪽 스크립트에서 교체)
+let recRegHook=()=>false; // 검색으로 확인된 이름(Deezer/Apple 표기)으로도 등록 여부를 한 번 더 확인
 const REC_JUNK=/^(seen live|favou?rites?|favou?rite .*|my .*|love|loved|awesome|good|great|best|beautiful|cool|amazing|albums? i own|under \d+ listeners|spotify|\d{2,4}s?)$/;
 const REC_GENERIC=new Set(['rock','pop','indie','alternative','alternative rock','indie rock','electronic','hip-hop','hip hop','rap','folk','soul','jazz','singer-songwriter','female vocalists','male vocalists','chill','mellow','experimental']);
 async function fullTags(artist,track){
@@ -1312,10 +1314,19 @@ function regIndex(){
   songs.forEach(s=>{const k=normTitle(s.title);if(!k)return;(m.get(k)||m.set(k,[]).get(k)).push(recNorm(s.artist))});
   return m;
 }
+const hasHangul=s=>/[가-힣]/.test(String(s||'')),hasLatin=s=>/[a-z]/i.test(String(s||''));
+const artistTokens=s=>String(s||'').toLowerCase().split(/[,&/×x·;]|\sfeat\.?\s|\sft\.?\s|\swith\s/).map(recNorm).filter(Boolean);
 const isRegistered=(c,idx)=>{
   const arts=idx.get(normTitle(c.title));if(!arts)return false;
-  const a=recNorm(c.artist);
-  return arts.some(x=>x&&a&&(x===a||x.includes(a)||a.includes(x)));
+  const ca=artistTokens(c.artist),a=recNorm(c.artist);
+  return arts.some(x=>{
+    if(!x||!a)return true; // 아티스트 정보가 없으면 제목만으로 판단
+    if(x===a||x.includes(a)||a.includes(x))return true;
+    const xt=x.split('|');
+    if(ca.some(t=>x.includes(t)||t.includes(x)))return true;
+    // 한글 표기 vs 영문 표기처럼 글자 체계가 달라 비교가 안 되는 경우: 제목이 같으면 같은 곡으로 봄
+    return (hasHangul(x)&&!hasHangul(a)&&hasLatin(a))||(hasHangul(a)&&!hasHangul(x)&&hasLatin(x));
+  });
 };
 const _getSimilar=getSimilar;
 getSimilar=async function(artist,track,limit){
@@ -1323,10 +1334,23 @@ getSimilar=async function(artist,track,limit){
   return list.filter(c=>!isRegistered(c,idx));
 };
 recFilterHook=list=>{const idx=regIndex();return list.filter(c=>!isRegistered(c,idx))};
+recRegHook=c=>isRegistered(c,regIndex());
 
 // ---------- render 연결 ----------
+function pruneRegisteredRecs(){
+  const idx=regIndex();
+  document.querySelectorAll('#rec-results,#sim-results').forEach(box=>{
+    const list=box._list;if(!list)return;
+    let changed=false;
+    box.querySelectorAll('[data-row]').forEach(row=>{
+      const c=list[Number(row.dataset.row)];
+      if(c&&!row.dataset.gone&&isRegistered(c,idx)){row.dataset.gone='1';row.removeAttribute('data-ok');row.style.display='none';changed=true}
+    });
+    if(changed)recPage(box);
+  });
+}
 const _render=render;
-render=function(){_render();
+render=function(){_render();try{pruneRegisteredRecs()}catch(e){}
   if($('#xd-modal').classList.contains('open'))drawDetail();
   updateBar()};
 render();
