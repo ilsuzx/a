@@ -1575,6 +1575,7 @@ async function fillSong(s){
   return ch;
 }
 
+window.fillSongInfo=fillSong; // 달력에서 곡을 추가할 때도 연도·장르를 채워요
 // ---------- 노래 추가/수정 창: 검색 결과를 고르면 비어 있는 연도·장르를 채워요 ----------
 window.fillFormExtra=async function(){
   const t=$('#f-title').value.trim(),a=first($('#f-artist').value);
@@ -1771,12 +1772,12 @@ function show(m){
 const dz=url=>new Promise(r=>jsonp(url,r));
 const names=v=>(Array.isArray(v)?v:(v?[v]:[])).map(x=>x.name).filter(Boolean).slice(0,6);
 async function gather(title,artist){
-  const m={};let dzId=null,spotify='';
+  const m={},extra={};let dzId=null,spotify='';
   try{
     const s=await dz('https://api.deezer.com/search?q='+encodeURIComponent('artist:"'+artist+'" track:"'+title+'"')+'&limit=1&output=jsonp');
     const hit=s&&s.data&&s.data[0];
     if(hit){dzId=hit.id;const d=await dz('https://api.deezer.com/track/'+hit.id+'?output=jsonp');
-      if(d&&!d.error){if(d.duration)m.duration=d.duration;m.explicit=!!d.explicit_lyrics;if(d.bpm)m.bpm=Math.round(d.bpm)}}
+      if(d&&!d.error){if(d.duration)m.duration=d.duration;m.explicit=!!d.explicit_lyrics;if(d.bpm)m.bpm=Math.round(d.bpm);if(d.album){if(d.album.title)extra.album=d.album.title;const cv=d.album.cover_xl||d.album.cover_big;if(cv)extra.cover=cv}const ry=String(d.release_date||'').slice(0,4);if(/^\d{4}$/.test(ry))extra.year=ry}}
   }catch(e){}
   try{
     const t=await lfm('track.getInfo',{artist,track:title});const tr=t&&t.track;
@@ -1797,7 +1798,7 @@ async function gather(title,artist){
       if(typeof f.key==='number'&&f.key>=0){m.key=KEYS[f.key]+(f.mode===1?' 메이저':' 마이너');m.camelot=(f.mode===1?CAM_MAJ:CAM_MIN)[f.key]}
     }
   }
-  return {m,spotify};
+  return {m,spotify,extra};
 }
 window.fetchSongMeta=gather; // 달력에서 곡을 추가할 때도 같은 분석 값을 채워요
 async function run(){
@@ -1825,21 +1826,21 @@ show(null);
 .cal-bar h2{margin:0 4px;color:var(--fg);font-size:20px;letter-spacing:-.02em;min-width:118px;text-align:center}
 .cal-bar .icon-btn{font-size:18px;padding:4px 12px}
 .cal-count{margin-left:auto;color:var(--muted);font-size:13px}
-.cal-dow,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}
+.cal-dow,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}
 .cal-dow{margin-bottom:6px}.cal-dow span{text-align:center;font-size:12px;color:var(--muted)}
-.dc{position:relative;aspect-ratio:1;border:1px solid var(--line);background:#fff;border-radius:11px;padding:0;overflow:hidden;cursor:pointer;transition:transform .35s var(--ease),box-shadow .35s var(--ease),border-color .2s}
-.dc:hover{transform:translateY(-3px);box-shadow:0 16px 28px -16px #0008;border-color:#d4d4d1}
-.dc .dn{position:absolute;top:6px;left:7px;font-size:12px;font-weight:600;color:var(--muted);z-index:2;line-height:1.5}
+.dc{position:relative;aspect-ratio:1;border:0;background:transparent;border-radius:0;padding:0;overflow:hidden;cursor:pointer;transition:background .2s}
+.dc:not(.has):hover{background:#ececea}
+.dc .dn{position:absolute;top:6px;left:8px;font-size:12px;font-weight:600;color:var(--muted);z-index:2;line-height:1.5}
 .dc i{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:22px;color:#c4c4c1;opacity:0;transition:opacity .2s}
 .dc:hover i{opacity:1}
-.dc.has{border-color:transparent}
 .dc.has .dn{color:#fff;text-shadow:0 1px 5px #000b}
 .dc.has:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0007,#0000 48%);pointer-events:none;z-index:1}
 .dc-art{position:absolute;inset:0;display:grid;place-items:center;background:#e4e4e1}
 .dc-art img{width:100%;height:100%;object-fit:cover}.dc-art .placeholder{font-size:20px}
-.dcount{position:absolute;right:5px;bottom:5px;z-index:2;background:#000a;color:#fff;font-size:10.5px;font-style:normal;font-weight:600;padding:0 6px;border-radius:999px;line-height:1.6}
-.dc.today .dn{background:var(--fg);color:#fff;text-shadow:none;padding:0 7px;border-radius:999px}
-.dc.sel{box-shadow:0 0 0 2px var(--fg);border-color:transparent}
+.dcount{position:absolute;right:6px;bottom:5px;z-index:2;color:#fff;font-size:11px;font-style:normal;font-weight:600;text-shadow:0 1px 4px #0009}
+.dc.today .dn{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:2px;color:var(--fg)}
+.dc.today.has .dn{color:#fff}
+.dc.sel:before{content:"";position:absolute;inset:0;border:2px solid var(--fg);z-index:3;pointer-events:none}
 .dc.blank{visibility:hidden;pointer-events:none}
 .day-col{min-width:0}
 .dp-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:18px}
@@ -1888,7 +1889,7 @@ show(null);
 .pk-note{margin-right:auto;color:var(--muted);font-size:12px}
 .api-result .btn[disabled]{opacity:.5;cursor:default}
 @media(max-width:860px){.daily-layout{grid-template-columns:minmax(0,1fr);gap:30px}}
-@media(max-width:560px){.cal-dow,.cal-grid{gap:4px}.dc{border-radius:8px}.dc .dn{top:3px;left:5px;font-size:11px}.dcount{right:3px;bottom:3px;font-size:10px;padding:0 5px}.cal-bar h2{min-width:0;font-size:17px}.cal-count{display:none}.tt-time{width:84px}.dp-top h2{font-size:22px}}
+@media(max-width:560px){.dc .dn{top:3px;left:5px;font-size:11px}.dcount{right:4px;bottom:3px;font-size:10px}.cal-bar h2{min-width:0;font-size:17px}.cal-count{display:none}.tt-time{width:84px}.dp-top h2{font-size:22px}}
 </style>
 <script>
 // ===== 달력(메인): 날짜별 여러 곡/앨범 기록 + 시간표 + 대표곡 + 취향 분석 =====
@@ -1909,7 +1910,7 @@ document.querySelector('[data-page="songs"]').insertAdjacentHTML('beforebegin','
 document.getElementById('page-songs').classList.remove('active');
 document.querySelector('.wrap').insertAdjacentHTML('beforeend',`
 <section class="page active" id="page-daily">
-  <div class="head"><div><h1>달력</h1><p class="taste-text">그날 들은 음악을 시간순으로 남기고, 대표곡 하나를 달력에 띄워요.</p></div></div>
+  
   <div class="daily-layout">
     <div class="cal-col">
       <div class="cal-bar"><button class="icon-btn" id="cal-prev" aria-label="이전 달">‹</button><h2 id="cal-title"></h2><button class="icon-btn" id="cal-next" aria-label="다음 달">›</button><button class="btn secondary small" id="cal-today">오늘</button><span class="cal-count" id="cal-count"></span></div>
@@ -2007,7 +2008,7 @@ function renderDaily(){
   for(let i=0;i<first;i++)html+='<span class="dc blank"></span>';
   for(let d=1;d<=days;d++){
     const k=ymd(y,m,d),day=daily[k],has=day&&day.items.length,rep=has?repOf(day):null;
-    const cls='dc'+(has?' has':'')+(k===tk?' today':'')+(k===sel?' sel':'');
+    const cls='dc'+(has?' has':'')+(k===tk?' today':'')+(k<tk?' past':'')+(k===sel?' sel':'');
     if(has){nd++;nsong+=day.items.length}
     html+=has
       ?`<button class="${cls}" data-d="${k}" title="${esc(rep.title+' — '+rep.artist)}" aria-label="${m+1}월 ${d}일, 대표곡 ${esc(rep.title)}"><span class="dc-art">${cover(rep.cover)}</span><b class="dn">${d}</b>${day.items.length>1?`<em class="dcount">+${day.items.length-1}</em>`:''}</button>`
@@ -2089,17 +2090,55 @@ function ensureAlbum(x){
   albums.unshift(a);return a;
 }
 async function enrich(id){
-  const s=songs.find(x=>x.id===id);
-  if(!s||s.meta||pendingMeta.has(id)||typeof fetchSongMeta!=='function')return;
+  const s0=songs.find(x=>x.id===id);
+  if(!s0||pendingMeta.has(id))return;
+  if(s0.meta&&s0.year&&s0.genre&&s0.sound&&s0.album&&s0.cover)return; // 이미 다 채워져 있음
   pendingMeta.add(id);renderDaily();
+  const live=()=>songs.find(x=>x.id===id);
+  let changed=false;
+  const put=(o,k,v)=>{if(v&&!String(o[k]||'').trim()){o[k]=String(v);changed=true}};
   try{
-    const r=await fetchSongMeta(s.title,s.artist),cur=songs.find(x=>x.id===id);
-    if(cur&&r&&r.m&&Object.keys(r.m).length){
-      cur.meta=r.m;
-      if(!cur.genre&&r.m.tags&&r.m.tags[0])cur.genre=r.m.tags[0];
-      if(!cur.sound){const so=(r.m.tags||[]).map(t=>SOUND_MAP[String(t).toLowerCase()]).filter(Boolean);cur.sound=[...new Set(so)].slice(0,3).join(', ')}
-      save();
+    const a1=String(s0.artist||'').split(',')[0].trim();
+    // 1) 분석값(BPM·키·무드·길이) + 딥저의 앨범·연도·커버
+    let r=null;
+    if(typeof fetchSongMeta==='function'){try{r=await fetchSongMeta(s0.title,s0.artist)}catch(e){}}
+    let cur=live();if(!cur){pendingMeta.delete(id);renderDaily();return}
+    if(r&&r.m&&Object.keys(r.m).length&&!cur.meta){cur.meta=r.m;changed=true}
+    if(r&&r.extra){put(cur,'album',r.extra.album);put(cur,'year',r.extra.year);put(cur,'cover',r.extra.cover)}
+    // 2) 연도·장르 (MusicBrainz)
+    if((!cur.year||!cur.genre)&&typeof fillSongInfo==='function'){
+      const tmp={title:cur.title,artist:cur.artist,year:cur.year||'',genre:cur.genre||''};
+      try{await fillSongInfo(tmp)}catch(e){}
+      cur=live();if(!cur){pendingMeta.delete(id);renderDaily();return}
+      put(cur,'year',tmp.year);put(cur,'genre',tmp.genre);
     }
+    // 3) 사운드 + 장르 보완 (Last.fm 태그)
+    if((!cur.sound||!cur.genre)&&typeof lfm==='function'){
+      const arr=v=>Array.isArray(v)?v:(v?[v]:[]);
+      let tags=(cur.meta&&cur.meta.tags||[]).map(n=>({name:n}));
+      try{
+        const t=await lfm('track.getTopTags',{artist:a1||cur.artist,track:cur.title});
+        tags=tags.concat(arr(t&&t.toptags&&t.toptags.tag));
+        if(tags.length<8){const a=await lfm('artist.getTopTags',{artist:a1||cur.artist});tags=tags.concat(arr(a&&a.toptags&&a.toptags.tag))}
+      }catch(e){}
+      cur=live();if(!cur){pendingMeta.delete(id);renderDaily();return}
+      if(!cur.sound){
+        const so=[];
+        for(const x of tags){const k=SOUND_MAP[String(x.name||'').toLowerCase().trim()];if(k&&!so.includes(k))so.push(k);if(so.length>=3)break}
+        put(cur,'sound',so.join(', '));
+      }
+      if(!cur.genre&&tags[0]&&tags[0].name)put(cur,'genre',tags[0].name);
+    }
+    // 4) 앨범 목록에도 반영 (없으면 만들고, 비어 있는 칸은 채움)
+    cur=live();
+    if(cur&&cur.album){
+      let al=albums.find(a=>a.title.toLowerCase()===cur.album.toLowerCase()&&a.artist.toLowerCase()===cur.artist.toLowerCase());
+      if(!al){albums.unshift({id:uid(),title:cur.album,artist:cur.artist,year:cur.year||'',genre:cur.genre||'',cover:cur.cover||'',note:'',created:Date.now()});changed=true}
+      else{['year','genre','cover'].forEach(k=>put(al,k,cur[k]))}
+    }
+    // 5) 달력 기록 카드에도 앨범·커버 반영
+    if(cur)Object.values(daily).forEach(d=>(d.items||[]).forEach(it=>{if(it.songId===id){put(it,'album',cur.album);put(it,'cover',cur.cover)}}));
+    if(changed){save();render();toast('곡 정보를 자동으로 채웠어요.')}
   }catch(e){}
   pendingMeta.delete(id);renderDaily();
 }
