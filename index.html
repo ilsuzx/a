@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -190,9 +190,8 @@ h1{font-size:30px}
 </section>
 
 <section class="page about" id="page-about">
-  <div class="head"><h1>설정</h1></div>
   <div class="backup" id="uid-box"><h2>내 고유 ID</h2><div id="uid-body"></div></div>
-  <div class="backup" id="blocked-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">추천 차단한 곡 <span class="taste-text" id="blocked-count" style="font-size:13px"></span></h2><button class="btn ghost small" id="blocked-clear">모두 해제</button></div><p>추천 목록에서 ‘차단’을 누른 곡이에요. 이 곡들은 추천과 비슷한 곡에 다시 나오지 않아요.</p><div class="song-list" id="blocked-list"></div></div>
+  <div class="backup" id="blocked-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">추천 차단한 곡 <span class="taste-text" id="blocked-count" style="font-size:13px"></span></h2><div style="display:flex;gap:4px"><button class="btn ghost small" id="blocked-clear" style="display:none">모두 해제</button><button class="btn ghost small" id="blocked-toggle" aria-expanded="false">펼치기</button></div></div><div id="blocked-body" style="display:none"><div class="song-list" id="blocked-list"></div></div></div>
   <div class="backup"><h2>백업과 복원</h2><p>데이터는 이 브라우저에만 저장돼요. 파일로 내보내 두면 기기를 바꾸거나 캐시를 지워도 복원할 수 있어요.</p><div class="backup-actions"><button class="btn" id="export-btn">내보내기</button><button class="btn secondary" id="import-merge">가져오기 (합치기)</button><button class="btn secondary" id="import-replace">가져오기 (덮어쓰기)</button></div><input type="file" id="import-file" accept=".json,application/json" style="display:none"></div>
 </section>
 </div>
@@ -1346,6 +1345,11 @@ function renderBlocked(){
   $('#blocked-count').textContent=blocked.length?`${blocked.length}곡`:'';
   box.innerHTML=blocked.map(x=>`<div class="song-row"><div class="mini-cover">${cover(x.cover)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}</span></div><div class="row-actions"><button class="btn secondary small" onclick="unblockSong('${x.id}')">차단 해제</button></div></div>`).join('')||'<div class="empty"><b>차단한 곡이 없어요</b>추천 목록에서 \'차단\'을 누르면 여기에 모여요.</div>';
 }
+$('#blocked-toggle').onclick=()=>{
+  const body=$('#blocked-body'),open=body.style.display==='none';
+  body.style.display=open?'':'none';$('#blocked-clear').style.display=open?'':'none';
+  $('#blocked-toggle').textContent=open?'접기':'펼치기';$('#blocked-toggle').setAttribute('aria-expanded',open);
+};
 $('#blocked-clear').onclick=()=>{if(!blocked.length)return;const b=blocked.slice();if(!confirm(`차단한 ${b.length}곡을 모두 해제할까요?`))return;blocked=[];save();render();undoToast('차단을 모두 해제했어요.',()=>{blocked=b;save();render()})};
 
 // ---------- 탭 이동 시 추천 미리듣기 정지 ----------
@@ -1813,10 +1817,10 @@ function showId(){
   const box=$('#uid-body');
   if(box){
     if(id){
-      box.innerHTML='<p>이 브라우저에서 쓰는 익명 ID예요. 서버에 올린 내 곡 목록은 이 ID에만 연결돼요. 다른 기기나 시크릿 창에서는 다른 ID가 만들어져요.</p><div class="toolbar"><code style="user-select:all;word-break:break-all;flex:1;min-width:0">'+id+'</code><button class="btn secondary small" id="uid-copy">복사</button></div>';
+      box.innerHTML='<div class="toolbar" style="margin:0;align-items:center"><code style="user-select:all;word-break:break-all;flex:1;min-width:0;font-size:12px;color:var(--muted)">'+id+'</code><button class="btn secondary small" id="uid-copy">복사</button></div>';
       $('#uid-copy').onclick=()=>copyId(id);
     }else{
-      box.innerHTML='<p>아직 ID가 없어요. 처음 접속할 때 뜨는 안내에 동의하면 바로 만들어져요. 취향 탭의 \'다른 사용자들이 좋아한 곡\'에서 참여할 수도 있어요.</p>';
+      box.innerHTML='<code style="font-size:12px;color:var(--muted)">아직 없음</code>';
     }
   }
 }
@@ -2001,6 +2005,7 @@ h1{font-size:28px}
 .api-result{padding:6px 8px}
 .btn{padding:7px 15px}.btn.small{padding:5px 12px}
 .random-stage{padding:18px 0}.random-stage .random-art{width:180px;height:180px;margin:14px auto}
+#uid-box{margin-top:0;border-top:0;padding-top:0}
 /* 모바일: 줄바꿈·깨짐 보정 */
 body{word-break:keep-all;overflow-wrap:break-word}
 .btn,.seg button,.nav button,.link,.tag-cloud span,.ana-chips span{white-space:nowrap}
