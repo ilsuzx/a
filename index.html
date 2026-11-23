@@ -181,6 +181,7 @@ h1{font-size:30px}
   <div class="block"><div class="glance" id="glance"></div></div>
   <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
   <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
+  <div class="block"><h2>세부 장르</h2><p class="taste-text" id="sub-note" style="margin:4px 0 14px;font-size:13px"></p><div id="sub-donut"></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
   <h2 id="taste-headline" style="display:none"></h2>
@@ -382,8 +383,93 @@ function renderCharts(){
     let acc=0;const stops=top.map(([n,c],i)=>{const a=acc/total*100;acc+=c;return `${SHADES[i]} ${a}% ${acc/total*100}%`});
     $('#genre-donut').innerHTML=`<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops.join(',')})"></div><div class="legend">${top.map(([n,c],i)=>`<div><i style="background:${SHADES[i]}"></i>${esc(n)}<em>${Math.round(c/total*100)}%</em></div>`).join('')}</div></div>`}
   const topDec=Object.entries(Object.keys(years).reduce((a,y)=>{const d=Math.floor(y/10)*10+'s';a[d]=(a[d]||0)+years[y];return a},{})).sort((a,b)=>b[1]-a[1])[0];
+  try{renderSubGenres()}catch(e){}
   $('#glance').innerHTML=[['노래',songs.length],['아티스트',new Set(songs.map(s=>s.artist.toLowerCase())).size],['앨범',albums.length],['가장 많은 연대',topDec?topDec[0].replace('s','년대'):'–']].map(([l,v])=>`<div><small>${l}</small><b>${esc(v)}</b></div>`).join('');
 }
+
+// ===== 세부 장르: Last.fm 아티스트 태그로 분석 (한 번 불러오면 저장해 두고 60일 동안 재사용) =====
+var SUB_TTL=60*864e5,subCache=null,subBusy=false,subTimer=0,subSongTags=new Map(),subShownKeys=new Set();
+function subLoad(){if(subCache)return subCache;try{subCache=JSON.parse(localStorage.getItem('aftertone_subgenre_v1')||'{}')||{}}catch(e){subCache={}}return subCache}
+function subSave(){try{localStorage.setItem('aftertone_subgenre_v1',JSON.stringify(subCache))}catch(e){}}
+function subAk(a){return String(a||'').toLowerCase().replace(/\s+/g,' ').trim()}
+function subKey(l){return String(l||'').toLowerCase().replace(/[^a-z0-9가-힣]/g,'')}
+// 너무 흔하거나 장르가 아닌 태그(국적·'seen live' 등)는 빼고, 같은 뜻의 표기는 하나로 합쳐요
+var SUB_SKIP=new Set(['korean','southkorean','korea','southkorea','japanese','chinese','american','british','english','swedish','german','french','canadian','australian','seenlive','favorites','favourites','favorite','favourite','malevocalists','femalevocalists','malevocalist','femalevocalist','vocalist','rock','pop','indie','alternative','electronic','experimental','chill','mellow','all','awesome','good','love','loved','spotify','asianmusic']);
+function subCanon(name){
+  let n=String(name||'').toLowerCase().trim().replace(/_/g,' ');
+  if(!n||n.length>30)return null;
+  if(/^(favou?rite .*|my .*|great|best|beautiful|cool|amazing|albums? i own|under \d+ listeners|\d{2,4}s?)$/.test(n))return null;
+  n=n.replace(/^(korean|k) (.+)$/,'k-$2').replace(/shoegazing/,'shoegaze');
+  const k=subKey(n);
+  if(!k||SUB_SKIP.has(k))return null;
+  return {k,l:n};
+}
+async function subArtistTags(artist){
+  const d=await lfm('artist.getTopTags',{artist});
+  if(d&&d.error===6)return [];            // 아티스트를 못 찾음 → 빈 결과로 기억
+  if(!d||!d.toptags)return null;          // 네트워크 문제 → 저장하지 않고 다음에 다시
+  const L=Array.isArray(d.toptags.tag)?d.toptags.tag:(d.toptags.tag?[d.toptags.tag]:[]);
+  const mx=Math.max(1,...L.map(x=>Number(x.count)||0)),out=new Map();
+  L.slice(0,25).forEach(x=>{
+    const c=subCanon(x.name);if(!c)return;
+    const w=(Number(x.count)||0)/mx;if(w<0.12)return;
+    const o=out.get(c.k);if(!o||w>o.w)out.set(c.k,{l:c.l,w});
+  });
+  return [...out.values()].sort((a,b)=>b.w-a.w).slice(0,6).map(x=>[x.l,Math.round(x.w*100)/100]);
+}
+function subCompute(){
+  const c=subLoad(),agg=new Map(),st=new Map();let used=0,none=0;
+  songs.forEach(s=>{
+    const e=c[subAk(s.artist)];if(!e)return;
+    if(!e.tags||!e.tags.length){none++;return}
+    const tg=e.tags.slice(0,5),sum=tg.reduce((a,x)=>a+x[1],0)||1;
+    used++;st.set(s.id,new Set(tg.map(x=>subKey(x[0]))));
+    tg.forEach(([l,w])=>{const k=subKey(l),o=agg.get(k)||{k,l,v:0,n:0};o.v+=w/sum;o.n++;agg.set(k,o)});
+  });
+  return {agg,used,none,st};
+}
+function subPaint(){
+  const box=document.getElementById('sub-donut'),note=document.getElementById('sub-note');if(!box)return;
+  if(!songs.length){box.innerHTML='<div class="empty">노래를 추가하면 세부 장르가 나와요.</div>';if(note)note.textContent='';return}
+  const r=subCompute();subSongTags=r.st;
+  if(!r.used){box.innerHTML=subBusy?'':'<div class="empty">아직 세부 장르 정보가 없어요. 이 페이지를 열어 두면 불러와요.</div>';return}
+  const all=[...r.agg.values()].sort((a,b)=>b.v-a.v);
+  let top=all.slice(0,6).map(x=>({k:x.k,l:x.l,v:x.v,n:x.n}));
+  const rest=all.slice(6).reduce((a,x)=>a+x.v,0);
+  subShownKeys=new Set(top.map(x=>x.k));
+  if(rest>0.0001)top.push({k:'기타',l:'기타',v:rest,n:0});
+  let acc=0;
+  const stops=top.map((x,i)=>{const a=acc/r.used*100;acc+=x.v;return `${SHADES[i]} ${a}% ${acc/r.used*100}%`});
+  box.innerHTML=`<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops.join(',')})"></div><div class="legend">${top.map((x,i)=>`<div data-v="${esc(x.k)}" data-l="${esc(x.l)}"><i style="background:${SHADES[i]}"></i>${esc(x.l)}<em>${Math.round(x.v/r.used*100)}%</em></div>`).join('')}</div></div>`;
+  if(note&&!subBusy)note.textContent=`Last.fm 아티스트 태그로 ${r.used}곡을 분석했어요.`+(r.none?` 태그를 찾지 못한 ${r.none}곡은 빠졌어요.`:'')+' 항목을 누르면 해당 곡을 볼 수 있어요.';
+}
+window.__subHas=(s,v)=>{const st=subSongTags.get(s.id);if(!st)return false;if(v==='기타')return [...st].some(k=>!subShownKeys.has(k));return st.has(v)};
+async function subRun(){
+  if(subBusy)return;
+  const pg=document.getElementById('page-taste');if(!pg||!pg.classList.contains('active'))return;
+  const c=subLoad(),now=Date.now();
+  const todo=[...new Map(songs.map(s=>[subAk(s.artist),s.artist])).entries()].filter(([k])=>!c[k]||now-(c[k].t||0)>SUB_TTL);
+  if(!todo.length)return;
+  subBusy=true;let i=0,done=0,fail=0;
+  const note=document.getElementById('sub-note');
+  const upd=()=>{if(note)note.textContent=`세부 장르를 분석하는 중이에요… ${done}/${todo.length} (아티스트 기준)`};
+  upd();
+  const worker=async()=>{
+    while(i<todo.length){
+      const [k,name]=todo[i++];
+      try{
+        let tags=await subArtistTags(name);
+        if(tags&&!tags.length&&/[,&\/]|feat|ft\./i.test(name)){const f=name.split(/\s*(?:,|\/|feat\.?|ft\.?)\s*/i)[0];if(f&&f!==name)tags=await subArtistTags(f)}
+        if(tags)c[k]={t:Date.now(),tags};else fail++;
+      }catch(e){fail++}
+      done++;upd();if(done%6===0)subPaint();
+    }
+  };
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  subSave();subBusy=false;subPaint();
+  if(fail&&note)note.textContent+=` (${fail}명은 불러오지 못했어요. 나중에 다시 열면 이어서 불러와요.)`;
+}
+function renderSubGenres(){clearTimeout(subTimer);subPaint();subTimer=setTimeout(subRun,300)}
 // Backup
 const str=v=>String(v??'').trim();
 const normSong=x=>({id:str(x.id)||uid(),title:str(x.title),artist:str(x.artist),album:str(x.album),year:str(x.year),genre:str(x.genre),sound:str(x.sound),cover:str(x.cover),note:str(x.note),preview:str(x.preview),created:Number(x.created)||Date.now()});
@@ -1299,10 +1385,10 @@ document.querySelectorAll('[data-xclose]').forEach(b=>b.onclick=closeModals);
 // ---------- 공통 ----------
 const split=v=>String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
 const validYear=s=>{const y=parseInt(s.year);return y>=1900&&y<=2100?y:null};
-const M={genre:(s,v)=>split(s.genre).includes(v),sound:(s,v)=>split(s.sound).includes(v),
+const M={sub:(s,v)=>!!(window.__subHas&&window.__subHas(s,v)),genre:(s,v)=>split(s.genre).includes(v),sound:(s,v)=>split(s.sound).includes(v),
  artist:(s,v)=>s.artist===v||split(s.artist).includes(v),year:(s,v)=>validYear(s)===+v,
  decade:(s,v)=>{const y=validYear(s);return y&&Math.floor(y/10)*10===+v}};
-const LBL={genre:'장르',sound:'사운드',artist:'아티스트',year:'발매 연도',decade:'연대'};
+const LBL={sub:'세부 장르',genre:'장르',sound:'사운드',artist:'아티스트',year:'발매 연도',decade:'연대'};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 // ---------- 항목 눌러서 해당 곡만 보기 ----------
@@ -1319,6 +1405,7 @@ function drawDetail(){
 $('#page-taste').addEventListener('click',e=>{
   let t;
   if(t=e.target.closest('#sound-tags span')){const v=t.textContent;if(songs.some(s=>M.sound(s,v)))openDetail('sound',v,v);return}
+  if(t=e.target.closest('#sub-donut .legend div')){if(t.dataset.v)openDetail('sub',t.dataset.v,t.dataset.l||t.dataset.v);return}
   if(t=e.target.closest('#genre-donut .legend div')){const n=[...t.childNodes].find(x=>x.nodeType===3);if(n)openDetail('genre',n.textContent,n.textContent);return}
 });
 
