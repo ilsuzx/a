@@ -442,7 +442,7 @@ function stopPlayer(){player.pause();player.removeAttribute('src');player.load()
 ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,refreshRows));
 let prevTried='';
 player.addEventListener('error',async()=>{
-  if(!playingId)return;
+  if(!playingId||String(playingId).startsWith('ext:'))return; // ext: 곡(월드컵·플리)은 별도 처리기가 맡아요
   const s=songs.find(x=>x.id===playingId),id=playingId;
   if(!s||prevTried===s.preview){toast('미리듣기를 불러오지 못했어요.');refreshRows();return}
   prevTried=s.preview;
@@ -2461,7 +2461,7 @@ show(null);
   function wcView(){
     if(!W)return;const pl=W.pl;$('#wc-title').textContent=pl.name;wb().style.opacity='';
     if(W.view==='seed'){
-      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">플리의 중심이 될 대표곡을 1~3곡 골라 주세요.</p><div class="wc-opts"><div class="seg" id="wc-size" role="group" aria-label="곡 수">${[5,10,20].map(n=>`<button type="button" data-wcsize="${n}" class="${W.size===n?'on':''}">${n}곡</button>`).join('')}</div><label class="wc-lib"><input type="checkbox" id="wc-lib" ${W.lib?'checked':''}> 내 보관함 곡도 섞기</label></div><input id="wc-q" class="search" placeholder="곡명 또는 아티스트 검색" style="width:100%;margin-bottom:8px"><div id="wc-seeds" class="wc-seeds"></div><div class="wc-actions"><button class="btn" data-wc="go" id="wc-go">시작</button></div>`;
+      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">플리의 중심이 될 대표곡을 1~3곡 골라 주세요.</p><div class="wc-opts"><div class="seg" id="wc-size" role="group" aria-label="곡 수">${[10,15,20].map(n=>`<button type="button" data-wcsize="${n}" class="${W.size===n?'on':''}">${n}곡</button>`).join('')}</div><label class="wc-lib"><input type="checkbox" id="wc-lib" ${W.lib?'checked':''}> 내 보관함 곡도 섞기</label></div><input id="wc-q" class="search" placeholder="곡명 또는 아티스트 검색" style="width:100%;margin-bottom:8px"><div id="wc-seeds" class="wc-seeds"></div><div class="wc-actions"><button class="btn" data-wc="go" id="wc-go">시작</button></div>`;
       wcSeeds('');return;
     }
     const chips=pl.items.map(s=>`<em class="${s.seed?'seed':''}">${esc(s.title)}</em>`).join('');
@@ -2629,6 +2629,25 @@ show(null);
   });
   drawU();
   ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{drawU();if(W&&W.view==='match'&&!W.loading)wcView()}));
+  // 월드컵·플리에서 재생이 실패하면(저장해 둔 미리듣기 주소 만료) 새 주소를 찾아 교체하고, 보관함 곡에도 반영해요
+  const extTried=new Set();
+  player.addEventListener('error',async()=>{
+    const id=playingId;if(!id||!String(id).startsWith('ext:'))return;
+    const it=extMap.get(id);if(!it)return;
+    const bad=it.preview;
+    if(extTried.has(bad)){toast('미리듣기를 불러오지 못했어요.');return}
+    extTried.add(bad);
+    const u=await freshPreviewUrl(it.title,it.artist);
+    if(playingId!==id)return;
+    if(!u){toast('이 곡의 미리듣기를 새로 찾지 못했어요.');return}
+    extMap.forEach(x=>{if(x.preview===bad)x.preview=u});
+    songs.forEach(x=>{if(x.preview===bad||iid(x)===id)x.preview=u});
+    userPl.forEach(p=>(p.items||[]).forEach(x=>{if(x.preview===bad)x.preview=u}));
+    if(W&&W.cur)W.cur.forEach(x=>{if(x&&x.preview===bad)x.preview=u});
+    try{save()}catch(e){}saveU();
+    extTried.add(u);
+    player.src=u;player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));
+  });
   document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{queue=[]}));
 })();
 </script>
