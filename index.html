@@ -2274,15 +2274,27 @@ show(null);
   const getTags=async c=>{const k=skey(c);let t=tagMem.get(k);if(!t){try{t=await fullTags(c.artist,c.title)}catch(e){t=new Map()}tagMem.set(k,t||new Map())}return tagMem.get(k)};
   const idfVec=t=>{const v=new Map();t.forEach((w,name)=>{const k=norm(name);v.set(k,(v.get(k)||0)+w*Math.log(1+W.N/(W.df[k]||0.5)))});return unit(v)};
   const vecOf=c=>{const t=tagMem.get(skey(c));return t&&t.size?idfVec(t):null};
-  function addPool(list,w){
+  function addPool(list,w,src){
     recFilterHook(list||[]).forEach(c=>{const k=skey(c);if(!W||W.shown.has(k))return;
-      const e=W.pool.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0};e.sum+=(c.match||0.3)*w;e.hits++;W.pool.set(k,e)});
+      const e=W.pool.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0,from:new Set()};
+      e.sum+=(c.match||0.3)*w;e.hits++;if(src)e.from.add(src);W.pool.set(k,e)});
   }
   function rank(){
     const arr=[...W.pool.entries()].filter(([k])=>!W.shown.has(k)).map(([k,c])=>({k,c,score:c.sum*(1+0.6*(c.hits-1))}));
     const mx=Math.max(1e-6,...arr.map(x=>x.score)),tv=unit(W.tv);
-    arr.forEach(x=>{const v=vecOf(x.c),cs=v?Math.max(0,cos(v,tv)):null;x.final=(cs==null?x.score/mx:0.5*x.score/mx+0.5*cs)+Math.random()*0.04});
+    arr.forEach(x=>{const v=vecOf(x.c),cs=v?Math.max(0,cos(v,tv)):null;x.mx=mx;x.final=(cs==null?x.score/mx:0.5*x.score/mx+0.5*cs)+Math.random()*0.04});
     return arr.sort((a,b)=>b.final-a.final);
+  }
+  function why(x){
+    const t=tagMem.get(skey(x.c)),v=vecOf(x.c),tv=unit(W.tv);
+    let cs=null,tags=[];
+    if(t&&v&&tv.size){
+      cs=Math.max(0,cos(v,tv));
+      const nm=new Map();t.forEach((w,name)=>nm.set(norm(name),name));
+      tags=[...v.entries()].map(([k,a])=>[nm.get(k)||k,a*(tv.get(k)||0)]).filter(p=>p[1]>0).sort((p,q)=>q[1]-p[1]).slice(0,3).map(p=>p[0]);
+    }
+    const sim=Math.min(1,x.score/x.mx);
+    return {total:Math.round((cs==null?sim:0.5*sim+0.5*cs)*100),sim:Math.round(sim*100),cos:cs==null?null:Math.round(cs*100),hits:x.c.hits,from:[...(x.c.from||[])].slice(0,2),tags};
   }
   const enrichMemo=x=>{
     if(memo.has(x.k))return Promise.resolve(memo.get(x.k));
@@ -2297,6 +2309,8 @@ show(null);
     if(ready.length<2)return null;
     const a=ready[0],b=ready.slice(1).find(r=>recNorm(r.it.artist)!==recNorm(a.it.artist))||ready[1];
     const pair=Math.random()<0.5?[a,b]:[b,a];
+    await Promise.all(pair.map(r=>getTags(r.x.c))); // 태그 일치도 계산용
+    pair.forEach(r=>{r.it.why=why(r.x)});
     return pair.map(r=>r.it);
   }
   function prefetch(){ // 고르는 동안 다음 후보의 태그·미리듣기를 미리 불러와요
@@ -2306,8 +2320,9 @@ show(null);
   }
   const wb=()=>$('#wc-body');
   function wcCard(c,i){
-    const on=playingId===c.id&&!player.paused;
-    return `<div class="wc-card"><div class="wc-cover">${cover(c.cover)}</div><strong>${esc(c.title)}</strong><span>${esc(c.artist)}</span><div class="wc-btns"><button class="btn ghost small" data-wcplay="${i}">${on?'❚❚ 멈춤':'▶ 듣기'}</button><button class="btn small" data-wc="pick${i}">이 곡 선택</button></div></div>`;
+    const on=playingId===c.id&&!player.paused,w=c.why;
+    const whyHtml=w?`<div class="wc-why"><div class="wc-score"><b>추천 점수 ${w.total}</b>${w.cos!=null?`<span>분위기 ${w.cos}</span>`:''}<span>유사도 ${w.sim}</span></div>${w.from.length?`<p>「${w.from.map(esc).join('」, 「')}」와(과) 비슷해요${w.hits>1?` · ${w.hits}곡과 겹쳐요`:''}</p>`:''}${w.tags.length?`<p>공통 태그: ${w.tags.map(esc).join(', ')}</p>`:''}</div>`:'';
+    return `<div class="wc-card"><div class="wc-cover">${cover(c.cover)}</div><strong>${esc(c.title)}</strong><span>${esc(c.artist)}</span>${whyHtml}<div class="wc-btns"><button class="btn ghost small" data-wcplay="${i}">${on?'❚❚ 멈춤':'▶ 듣기'}</button><button class="btn small" data-wc="pick${i}">이 곡 선택</button></div></div>`;
   }
   function wcView(){
     if(!W)return;const pl=W.pl;$('#wc-title').textContent=pl.name;
@@ -2335,7 +2350,7 @@ show(null);
   async function nextRound(){
     const tok=W.tok;W.loading=true;W.msg='다음 비교곡을 찾고 있어요…';wcView();
     if(W.pool.size-W.shown.size<2){ // 후보가 모자라면 지금까지 담은 곡의 유사곡으로 한 번 더 넓혀요
-      for(const s of W.pl.items.slice(-3)){try{addPool(await getSimilar(s.artist,s.title,40),0.6)}catch(e){}}
+      for(const s of W.pl.items.slice(-3)){try{addPool(await getSimilar(s.artist,s.title,40),0.6,s.title)}catch(e){}}
     }
     const pair=await pickPair();
     if(!W||W.tok!==tok)return;
@@ -2356,8 +2371,8 @@ show(null);
     rawVec({title:seed.title,artist:seed.artist,sound:(pl.seedInfo&&pl.seedInfo.sound)||'',genre:(pl.seedInfo&&pl.seedInfo.genre)||'',year:''}).v.forEach((w,k)=>sm.set(k,(sm.get(k)||0)+w));
     if(!W||W.tok!==tok)return;
     W.tv=sm.size?idfVec(sm):new Map();
-    try{addPool(await getSimilar(seed.artist,seed.title,50),1)}catch(e){}
-    for(const s of pl.items.slice(1,4)){try{addPool(await getSimilar(s.artist,s.title,30),0.6)}catch(e){}}
+    try{addPool(await getSimilar(seed.artist,seed.title,50),1,seed.title)}catch(e){}
+    for(const s of pl.items.slice(1,4)){try{addPool(await getSimilar(s.artist,s.title,30),0.6,s.title)}catch(e){}}
     if(!W||W.tok!==tok)return;
     if(!W.pool.size){closeWc();toast('이 곡과 비슷한 곡을 찾지 못했어요. 다른 대표곡으로 시도해 보세요.');return}
     nextRound();
@@ -2372,7 +2387,7 @@ show(null);
     keep.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)+0.7*x));
       if(pl.items.length<TOTAL){const it=cleanItem(c);pl.items.push(it);regItem(it)}W.shown.add(skey(c))});
     drop.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)-0.3*x));W.shown.add(skey(c))});
-    keep.forEach(c=>{getSimilar(c.artist,c.title,30).then(l=>addPool(l,0.6)).catch(()=>{})});
+    keep.forEach(c=>{getSimilar(c.artist,c.title,30).then(l=>addPool(l,0.6,c.title)).catch(()=>{})});
     saveU();drawU();
     if(pl.items.length>=TOTAL)finishWc();else nextRound();
   }
@@ -2467,6 +2482,11 @@ show(null);
 .wc-card strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:6px}
 .wc-card span{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wc-btns{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.wc-why{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+.wc-score{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.wc-score b{font-size:12px}
+.wc-score span{font-size:11px;background:var(--soft);padding:1px 7px;border-radius:999px;color:var(--muted)}
+.wc-why p{margin:4px 0 0;font-size:11px;line-height:1.5;color:var(--muted);white-space:normal}
 .wc-actions{display:flex;gap:8px;justify-content:center;margin:14px 0 6px;flex-wrap:wrap}
 .wc-picked{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
 .wc-picked em{font-style:normal;font-size:11px;color:var(--muted);background:var(--soft);padding:2px 8px;border-radius:999px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
