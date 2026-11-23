@@ -1566,10 +1566,11 @@ $('#pl-run').onclick=async()=>{
   if(!items.length){toast('인식된 곡이 없어요. 형식을 확인해 주세요.');return}
   const lookup=true,wantSound=$('#pl-sound').checked,st=$('#pl-status');
   const keys=new Set(songs.map(skey)),fresh=[],newAlbums=[],base=Date.now();
-  let dup=0,found=0,done=0,nop=0;
+  let dup=0,found=0,done=0,nop=0,proc=0;const etaT0=Date.now();
+  const eta=i=>{if(proc<2)return ' · 남은 시간 계산 중';const sec=(Date.now()-etaT0)/proc*(items.length-i)/1000;return sec<60?' · 1분 미만 남음':` · 약 ${Math.ceil(sec/60)}분 남음`};
   plBusy=true;plCancel=false;$('#pl-run').disabled=true;$('#pl-cancel').style.display='';
   for(let i=0;i<items.length&&!plCancel;i++){
-    const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}`;
+    const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}${eta(i)}`;
     if(keys.has(skey(it))){dup++;continue}
     keys.add(skey(it));
     const s={id:uid(),title:it.title,artist:it.artist,album:it.album,year:it.year,genre:it.genre,sound:'',cover:'',note:'',preview:'',created:base-i};
@@ -1594,6 +1595,7 @@ $('#pl-run').onclick=async()=>{
         }
       }catch(e){}
     }
+    proc++;
     if(lookup&&!s.preview){nop++;if(!skipped.some(x=>skey(x)===skey(s)))skipped.push({id:uid(),title:s.title,artist:s.artist,album:s.album,year:s.year,genre:s.genre,cover:s.cover,created:base-i});continue} // 미리듣기 없는 곡은 제외 목록으로
     if(wantSound)s.sound=await plSound(s.artist,s.title);
     fresh.push(s);done++;
