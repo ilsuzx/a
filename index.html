@@ -172,7 +172,7 @@ h1{font-size:30px}
 
 <section class="page" id="page-albums">
   <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
-  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도순</option></select></div>
+  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도순</option><option value="color">색상 비슷한 순</option></select></div>
   <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
 
@@ -370,6 +370,66 @@ $('#alb-del').onclick=()=>{
   undoToast(`${ids.length}개 앨범을 삭제했어요.`,()=>{albums=bk;save();render()});
 };
 
+// ===== 앨범: 비슷한 색 커버끼리 이어 붙이기 ('색상 비슷한 순') =====
+let colCache=(()=>{try{return JSON.parse(localStorage.getItem('aftertone_albcolor_v1')||'{}')||{}}catch(e){return {}}})(),colBusy=false;const colFail=new Set();
+const saveCol=()=>{try{localStorage.setItem('aftertone_albcolor_v1',JSON.stringify(colCache))}catch(e){}};
+const albCol=a=>{const c=colCache[a.id];return c&&c.u===a.cover?c.c:null};
+function rgb2lab(r,g,b){
+  const f=c=>{c/=255;return c>.04045?Math.pow((c+.055)/1.055,2.4):c/12.92},R=f(r),G=f(g),B=f(b);
+  const x=(R*.4124+G*.3576+B*.1805)/.95047,y=R*.2126+G*.7152+B*.0722,z=(R*.0193+G*.1192+B*.9505)/1.08883;
+  const t=v=>v>.008856?Math.cbrt(v):7.787*v+16/116;
+  return [116*t(y)-16,500*(t(x)-t(y)),200*(t(y)-t(z))];
+}
+function loadColor(url){return new Promise(res=>{
+  const go=(u,retry)=>{
+    const im=new Image();im.crossOrigin='anonymous';let done=false;
+    const fin=v=>{if(!done){done=true;clearTimeout(to);res(v)}},to=setTimeout(()=>fin(null),10000);
+    im.onload=()=>{try{
+      const c=document.createElement('canvas');c.width=c.height=24;
+      const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,24,24);
+      const d=x.getImageData(0,0,24,24).data;let R=0,G=0,B=0,W=0;
+      for(let i=0;i<d.length;i+=4){if(d[i+3]<128)continue;
+        const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]),w=.3+(mx-mn)/255*2; // 채도 높은 색에 더 무게
+        R+=d[i]*w;G+=d[i+1]*w;B+=d[i+2]*w;W+=w}
+      fin(W?rgb2lab(R/W,G/W,B/W).map(v=>Math.round(v*10)/10):null);
+    }catch(e){fin(null)}};
+    im.onerror=()=>{clearTimeout(to);if(retry&&!done)go(u+(u.includes('?')?'&':'?')+'cc=1',false);else fin(null)};
+    im.src=u;
+  };
+  go(url,true);
+})}
+function ensureColors(list){
+  if(colBusy)return;
+  const todo=list.filter(a=>a.cover&&!albCol(a)&&!colFail.has(a.id));if(!todo.length)return;
+  colBusy=true;toast('커버 색상을 분석하는 중이에요…');
+  let i=0,ok=0;
+  const worker=async()=>{while(i<todo.length){const a=todo[i++],c=await loadColor(a.cover);if(c){colCache[a.id]={u:a.cover,c};ok++}else colFail.add(a.id)}};
+  Promise.all(Array.from({length:6},worker)).then(()=>{
+    colBusy=false;saveCol();
+    const bad=todo.length-ok;
+    toast(bad?`${ok}개 분석 완료 · ${bad}개는 커버를 읽지 못해 맨 뒤에 둬요.`:`${ok}개 앨범 색상 분석 완료`);
+    if($('#album-sort').value==='color')renderAlbums();
+  });
+}
+function colorOrder(list){
+  const have=list.filter(albCol),miss=list.filter(a=>!albCol(a)),n=have.length;
+  if(n>2){
+    const P=have.map(albCol),d=(i,j)=>Math.hypot(P[i][0]-P[j][0],P[i][1]-P[j][1],P[i][2]-P[j][2]);
+    const used=new Array(n).fill(false);let cur=0;for(let i=1;i<n;i++)if(P[i][0]<P[cur][0])cur=i; // 가장 어두운 앨범부터
+    const path=[cur];used[cur]=true;
+    for(let k=1;k<n;k++){let b=-1,bd=1e9;for(let j=0;j<n;j++)if(!used[j]){const x=d(cur,j);if(x<bd){bd=x;b=j}}used[b]=true;path.push(b);cur=b}
+    if(n<=700)for(let pass=0;pass<4;pass++){ // 2-opt: 어색하게 튀는 구간 정리
+      let ch=false;
+      for(let i=0;i<n-1;i++)for(let j=i+1;j<n;j++){
+        const delta=(i>0?d(path[i-1],path[j])-d(path[i-1],path[i]):0)+(j<n-1?d(path[i],path[j+1])-d(path[j],path[j+1]):0);
+        if(delta<-1e-6){for(let a=i,b=j;a<b;a++,b--){const t=path[a];path[a]=path[b];path[b]=t}ch=true}
+      }
+      if(!ch)break;
+    }
+    list.splice(0,list.length,...path.map(i=>have[i]),...miss);
+  }else list.splice(0,list.length,...have,...miss);
+}
+
 // ===== 앨범: 중복 자동 합치기 (같은 앨범의 싱글/EP/디럭스 표기 차이, 같은 커버를 쓰는 같은 아티스트의 앨범) =====
 const ALB_JUNK=/(deluxe|edition|version|remaster|single|\bep\b|expanded|bonus|anniversary|repackage|special|explicit|\bver\b|디럭스|에디션|리마스터|싱글|버전|리패키지)/i;
 const albRaw=t=>String(t||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
@@ -507,6 +567,7 @@ function renderAlbums(){
   const list=albums.filter(a=>(a.title+' '+a.artist).toLowerCase().includes(q));
   if(sort==='title')list.sort((a,b)=>a.title.localeCompare(b.title));
   if(sort==='year')list.sort((a,b)=>(+b.year||0)-(+a.year||0));
+  if(sort==='color'){ensureColors(list);colorOrder(list)}
   $('#album-grid').innerHTML=list.map(albumCard).join('')||'<div class="empty" style="grid-column:1/-1"><b>아직 앨범이 없어요</b>좋아하는 앨범을 하나씩 모아보세요.</div>'}
 function counts(values){const c={};values.filter(Boolean).forEach(v=>v.split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>c[x]=(c[x]||0)+1));return Object.entries(c).sort((a,b)=>b[1]-a[1])}
 function bars(items){if(!items.length)return '<div class="empty">아직 분석할 데이터가 부족합니다.</div>';const max=items[0][1];return items.slice(0,6).map(([name,n])=>`<div class="bar-item"><div class="bar-label"><span>${esc(name)}</span><span>${n}</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div>`).join('')}
