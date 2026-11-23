@@ -241,7 +241,7 @@ h1{font-size:30px}
     <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,.xml,text/plain,text/xml" style="display:none">
   </div>
   <div id="pl-picker" style="display:none;margin:8px 0"><input class="search" id="pl-picker-q" placeholder="플레이리스트 검색" style="width:100%;margin-bottom:8px"><div id="pl-picker-list" class="plp-list"></div><button type="button" class="btn small" id="pl-picker-go" style="margin-top:8px">선택한 플레이리스트 불러오기</button></div>
-  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기 (미리듣기 없는 곡은 제외)</label>
+  <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기 (미리듣기가 없으면 다시 검색하고, 끝내 없으면 제외)</label>
   <label style="display:none;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
   <div class="api-status" id="pl-status"></div>
   <div class="modal-actions"><button type="button" class="btn secondary" id="pl-cancel" style="display:none">중단</button><button type="button" class="btn secondary" data-close>닫기</button><button type="button" class="btn" id="pl-run">가져오기</button></div>
@@ -286,8 +286,9 @@ function go(page){document.querySelectorAll('.page').forEach(p=>p.classList.togg
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
 document.querySelectorAll('[data-goto]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.goto)));
 const openModal=id=>$('#'+id).classList.add('open');
+let skipPendingId=null; // 제외 목록에서 '다시 검색'으로 열어 둔 곡 id
 let addQueue=[],addQueueTotal=0,queueOn=false,fillTok=0; // 여러 곡 연속 추가 대기열
-function closeModals(){fillTok++;if(queueOn&&addQueue.length){const n=addQueue.length;toast('남은 '+n+'곡은 추가하지 않았어요.')}addQueue=[];queueOn=false;try{syncQueueUI()}catch(e){}document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.api-result audio').forEach(a=>a.pause());try{mAud.pause()}catch(e){}if(recPlaying&&recPlaying._modal)recAudio.pause()}
+function closeModals(){skipPendingId=null;fillTok++;if(queueOn&&addQueue.length){const n=addQueue.length;toast('남은 '+n+'곡은 추가하지 않았어요.')}addQueue=[];queueOn=false;try{syncQueueUI()}catch(e){}document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.remove('open'));document.querySelectorAll('.api-result audio').forEach(a=>a.pause());try{mAud.pause()}catch(e){}if(recPlaying&&recPlaying._modal)recAudio.pause()}
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeModals));
 document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModals()}));
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModals()});
@@ -303,6 +304,7 @@ $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
   if(!id&&songs.some(x=>skey(x)===($('#f-title').value.trim()+'|'+$('#f-artist').value.trim()).toLowerCase())&&!confirm('이미 등록된 곡이에요. 그래도 추가할까요?'))return;
   const s={id:id||uid(),title:$('#f-title').value.trim(),artist:$('#f-artist').value.trim(),album:$('#f-album').value.trim(),year:$('#f-year').value,genre:$('#f-genre').value.trim(),sound:$('#f-sound').value.trim(),cover:$('#f-cover').value.trim(),note:id?(songs.find(x=>x.id===id)?.note||''):'',preview:$('#f-preview').value,meta:($('#f-meta').value?JSON.parse($('#f-meta').value):undefined),created:id?(songs.find(x=>x.id===id)?.created||Date.now()):Date.now()};
   if(id)songs=songs.map(x=>x.id===id?s:x);else songs.unshift(s);
+  if(!id&&skipPendingId){skipped=skipped.filter(y=>y.id!==skipPendingId);skipPendingId=null} // 다시 검색해서 등록하면 제외 목록에서 자동 삭제
   if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))albums.unshift({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:Date.now()});
   save();
   if(!id&&queueOn){
@@ -1524,7 +1526,8 @@ $('#pl-run').onclick=async()=>{
     if(lookup){
       try{
         const d=await new Promise(res=>searchTrack(it.title,it.artist,res));
-        const b=(d&&d.results||[]).find(x=>{if(!x.trackName)return false;const p=recNorm(x.artistName),q=recNorm(it.artist);return p&&q&&(p.includes(q)||q.includes(p))});
+        const cands=(d&&d.results||[]).filter(x=>{if(!x.trackName)return false;const p=recNorm(x.artistName),q=recNorm(it.artist);return p&&q&&(p.includes(q)||q.includes(p))});
+        const b=cands.find(x=>x.previewUrl)||cands[0];
         if(b){
           found++;
           s.cover=b._cover||largeArtwork(b.artworkUrl100||b.artworkUrl60)||'';
@@ -1538,6 +1541,18 @@ $('#pl-run').onclick=async()=>{
               if(!s.year)s.year=(ad.release_date||'').slice(0,4);
               if(!s.genre)s.genre=(ad.genres&&ad.genres.data&&ad.genres.data[0]&&ad.genres.data[0].name)||'';
             }
+          }
+        }
+        if(!s.preview&&!plCancel){ // 미리듣기가 없으면 표기를 바꿔 가며 다시 검색해서 한 번에 가져와요
+          st.textContent=`미리듣기 다시 검색 중 ${i+1} / ${items.length} · ${it.title}`;
+          const cleanT=String(it.title).replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–—]\s.*$/,'').trim();
+          const firstA=String(it.artist).split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\bwith\b|\sx\s)\s*/i)[0].trim();
+          const tries=[[it.title,it.artist]];
+          if(cleanT&&cleanT!==it.title)tries.push([cleanT,it.artist]);
+          if(firstA&&firstA!==it.artist){tries.push([it.title,firstA]);if(cleanT&&cleanT!==it.title)tries.push([cleanT,firstA])}
+          for(const [tt,aa] of tries){
+            let u='';try{u=await freshPreviewUrl(tt,aa)}catch(e){}
+            if(u){s.preview=u;if(!b)found++;break}
           }
         }
       }catch(e){}
@@ -1569,7 +1584,7 @@ function skippedToSong(x,t){
   songs.unshift(s);
   if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))albums.unshift({id:uid(),title:s.album,artist:s.artist,year:s.year,genre:s.genre,cover:s.cover,note:'',created:t});
 }
-function searchSkipped(id){const x=skipped.find(y=>y.id===id);if(x)addRecommended({title:x.title,artist:x.artist})}
+function searchSkipped(id){const x=skipped.find(y=>y.id===id);if(!x)return;addRecommended({title:x.title,artist:x.artist});skipPendingId=id}
 function removeSkipped(id){const i=skipped.findIndex(x=>x.id===id);if(i<0)return;const x=skipped[i];skipped.splice(i,1);save();render();undoToast('제외 목록에서 삭제했어요.',()=>{skipped.splice(Math.min(i,skipped.length),0,x);save();render()})}
 $('#skipped-toggle').onclick=()=>{const body=$('#skipped-body'),open=body.style.display==='none';body.style.display=open?'':'none';$('#skipped-toggle').textContent=open?'접기':'펼치기';$('#skipped-toggle').setAttribute('aria-expanded',open)};
 $('#skipped-clear').onclick=()=>{if(!skipped.length)return;const b=skipped.slice();if(!confirm(`제외 목록 ${b.length}곡을 모두 비울까요?`))return;skipped=[];save();render();undoToast('제외 목록을 비웠어요.',()=>{skipped=b;save();render()})};
