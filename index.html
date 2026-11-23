@@ -234,7 +234,7 @@ h1{font-size:30px}
 
 <div class="modal-backdrop" id="pl-modal"><div class="modal">
   <div class="modal-head"><h2>플레이리스트 가져오기</h2><button class="close" data-close>×</button></div>
-  <p class="taste-text" style="margin:0 0 12px;font-size:13px">한 줄에 한 곡씩 붙여넣거나 txt/csv 파일을 선택하세요.<br>지원: 애플 뮤직 복사/내보내기(탭 구분) · 곡명 - 아티스트 · CSV<br>특정 플레이리스트만: 뮤직 앱에서 그 플레이리스트를 선택하고 '플레이리스트 내보내기'로 만든 파일을 올리거나, '라이브러리 내보내기'(.xml) 파일을 올려서 목록에서 고르세요.</p>
+  <p style="margin:0 0 12px;font-size:13px">플레이리스트 불러오는 방법: MAC 음악 어플 -&gt; 좌측 상단 [파일] -&gt; [보관함] -&gt; 플레이리스트 내보내기</p>
   <div class="field"><textarea id="pl-text" style="min-height:170px" placeholder="예)&#10;Hype Boy - NewJeans&#10;Ditto&#9;NewJeans&#9;OMG"></textarea></div>
   <div class="toolbar" style="margin-top:10px;align-items:center">
     <select id="pl-format"><option value="title-artist">곡명 - 아티스트</option><option value="artist-title">아티스트 - 곡명</option></select>
@@ -1508,6 +1508,57 @@ function plPickerApply(){
 }
 $('#pl-picker-q').addEventListener('input',()=>{if(plLib)plPickerDraw()});
 $('#pl-picker-go').onclick=plPickerApply;
+// ===== 플레이리스트용 곡 정보 검색: 호출 간격을 두고, 실패하면 기다렸다 다시 시도해요 =====
+const plNorm=v=>String(v||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+const plCore=v=>plNorm(String(v||'').replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–—]\s.*$/,''))||plNorm(v);
+const plLast={dz:0,ap:0},plGap={dz:260,ap:1300};
+async function plWait(k){const w=plLast[k]+plGap[k]-Date.now();if(w>0)await new Promise(r=>setTimeout(r,w));plLast[k]=Date.now()}
+async function plDz(term){
+  for(let k=0;k<3;k++){
+    await plWait('dz');
+    const d=await new Promise(r=>deezerSearch(term,'song',r,25));
+    if(d&&!d.error)return d.results||[];
+    await new Promise(r=>setTimeout(r,1500*(k+1)));
+  }
+  return [];
+}
+async function plAp(term){
+  for(let k=0;k<3;k++){
+    await plWait('ap');
+    const d=await new Promise(r=>appleSearch(term,'song',r));
+    if(d&&!d.error)return d.results||[];
+    await new Promise(r=>setTimeout(r,k?9000:4000));
+  }
+  return [];
+}
+async function plLookup(it,cancelled){
+  const strip=v=>String(v||'').replace(/"/g,'').trim();
+  const clean=v=>strip(String(v||'').replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–—]\s.*$/,''));
+  const parts=v=>String(v||'').split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\bwith\b|\sx\s)\s*/i).map(strip).filter(Boolean);
+  const t0=strip(it.title),a0=strip(it.artist),t1=clean(it.title)||t0,a1=parts(it.artist)[0]||a0;
+  const an=[...new Set([a0,...parts(it.artist)].map(plNorm).filter(Boolean))];
+  const tn=[...new Set([plCore(t0),plCore(t1)].filter(Boolean))];
+  const sc=x=>{
+    if(!x||!x.trackName)return 0;
+    const xt=plCore(x.trackName),xa=plNorm(x.artistName);
+    if(!xt||!xa||!an.some(q=>xa.includes(q)||q.includes(xa)))return 0;
+    if(tn.includes(xt))return 3;
+    return tn.some(q=>q.length>=2&&xt.length>=2&&(xt.includes(q)||q.includes(xt)))?1:0;
+  };
+  const pick=list=>{let ex=null,lo=null,inf=null;for(const x of list||[]){const v=sc(x);if(!v)continue;if(x.previewUrl){if(v===3){if(!ex)ex=x}else if(!lo)lo=x}else if(!inf)inf=x}return{ex,lo,inf}};
+  const steps=[()=>plDz('artist:"'+a0+'" track:"'+t0+'"'),()=>plDz(t0+' '+a0),()=>plAp(t0+' '+a0)];
+  if(t1!==t0||a1!==a0){steps.push(()=>plAp(t1+' '+a1));steps.push(()=>plDz(t1+' '+a1))}
+  steps.push(()=>plDz(t1));
+  let lo=null,inf=null;
+  for(const run of steps){
+    if(cancelled&&cancelled())break;
+    const r=pick(await run());
+    if(r.ex)return r.ex;
+    if(r.lo&&!lo)lo=r.lo;
+    if(r.inf&&!inf)inf=r.inf;
+  }
+  return lo||inf||null;
+}
 $('#pl-cancel').onclick=()=>{plCancel=true};
 $('#pl-run').onclick=async()=>{
   if(plBusy)return;
@@ -1524,9 +1575,7 @@ $('#pl-run').onclick=async()=>{
     const s={id:uid(),title:it.title,artist:it.artist,album:it.album,year:it.year,genre:it.genre,sound:'',cover:'',note:'',preview:'',created:base-i};
     if(lookup){
       try{
-        const d=await new Promise(res=>searchTrack(it.title,it.artist,res));
-        const cands=(d&&d.results||[]).filter(x=>{if(!x.trackName)return false;const p=recNorm(x.artistName),q=recNorm(it.artist);return p&&q&&(p.includes(q)||q.includes(p))});
-        const b=cands.find(x=>x.previewUrl)||cands[0];
+        const b=await plLookup(it,()=>plCancel);
         if(b){
           found++;
           s.cover=b._cover||largeArtwork(b.artworkUrl100||b.artworkUrl60)||'';
@@ -1535,6 +1584,7 @@ $('#pl-run').onclick=async()=>{
           if(!s.year)s.year=(b.releaseDate||'').slice(0,4);
           if(!s.genre)s.genre=b.primaryGenreName||'';
           if(b._albumId&&(!s.year||!s.genre)){
+            await plWait('dz');
             const ad=await new Promise(res=>jsonp('https://api.deezer.com/album/'+b._albumId+'?output=jsonp',res));
             if(ad&&!ad.error){
               if(!s.year)s.year=(ad.release_date||'').slice(0,4);
@@ -1542,19 +1592,7 @@ $('#pl-run').onclick=async()=>{
             }
           }
         }
-        if(!s.preview&&!plCancel){ // 미리듣기가 없으면 표기를 바꿔 가며 다시 검색해서 한 번에 가져와요
-          const cleanT=String(it.title).replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–—]\s.*$/,'').trim();
-          const firstA=String(it.artist).split(/\s*(?:,|&|\/|\bfeat\.?|\bft\.?|\bwith\b|\sx\s)\s*/i)[0].trim();
-          const tries=[[it.title,it.artist]];
-          if(cleanT&&cleanT!==it.title)tries.push([cleanT,it.artist]);
-          if(firstA&&firstA!==it.artist){tries.push([it.title,firstA]);if(cleanT&&cleanT!==it.title)tries.push([cleanT,firstA])}
-          for(const [tt,aa] of tries){
-            let u='';try{u=await freshPreviewUrl(tt,aa)}catch(e){}
-            if(u){s.preview=u;if(!b)found++;break}
-          }
-        }
       }catch(e){}
-      await new Promise(r=>setTimeout(r,120)); // API 호출 간격
     }
     if(lookup&&!s.preview){nop++;if(!skipped.some(x=>skey(x)===skey(s)))skipped.push({id:uid(),title:s.title,artist:s.artist,album:s.album,year:s.year,genre:s.genre,cover:s.cover,created:base-i});continue} // 미리듣기 없는 곡은 제외 목록으로
     if(wantSound)s.sound=await plSound(s.artist,s.title);
