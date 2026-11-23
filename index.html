@@ -395,8 +395,15 @@ function dedupeAlbums(){
     // 앨범명이 같고 발매연도도 같은데 아티스트 표기만 한글↔영문처럼 다른 경우(자동 가져오기 vs 검색 등록)
     if(!g&&ty.length>=2){for(const c of byTY.get(ty)||[]){if(albScript(c.artist)!==albScript(a.artist)&&(!c.year||!a.year||String(c.year).slice(0,4)===String(a.year).slice(0,4))){g=c;break}}}
     if(g){
+      const gT=g.title,gA=g.artist;
       ['year','genre','cover','note','intro','srcName','srcUrl','info','dzId'].forEach(k=>{if(!g[k]&&a[k])g[k]=a[k]});
       if(albRaw(g.title)!==albT(g.title).replace(/\|.*/,'')&&albRaw(a.title)===albRaw(albT(a.title)))g.title=a.title;
+      if(albScript(gA)!==albScript(a.artist)){ // 아티스트 표기는 영문으로 통일하고, 해당 곡들의 앨범·아티스트도 같이 맞춰요
+        const lat=albScript(gA)==='lat'?gA:(albScript(a.artist)==='lat'?a.artist:gA);
+        const same=(x,t,ar)=>String(x.album||'').toLowerCase()===String(t).toLowerCase()&&String(x.artist||'').toLowerCase()===String(ar).toLowerCase();
+        songs.forEach(x=>{if(same(x,a.title,a.artist)||same(x,gT,gA)){x.album=g.title;x.artist=lat}});
+        g.artist=lat;
+      }
       merged++;
       byT.set(tk,g);if(ck)byC.set(ck,g);
     }else{out.push(a);byT.set(tk,a);if(ck)byC.set(ck,a);if(ty.length>=2){if(!byTY.has(ty))byTY.set(ty,[]);byTY.get(ty).push(a)}}
