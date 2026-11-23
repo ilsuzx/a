@@ -370,6 +370,37 @@ $('#alb-del').onclick=()=>{
   undoToast(`${ids.length}개 앨범을 삭제했어요.`,()=>{albums=bk;save();render()});
 };
 
+// ===== 앨범: 중복 자동 합치기 (같은 앨범의 싱글/EP/디럭스 표기 차이, 같은 커버를 쓰는 같은 아티스트의 앨범) =====
+const ALB_JUNK=/(deluxe|edition|version|remaster|single|\bep\b|expanded|bonus|anniversary|repackage|special|explicit|\bver\b|디럭스|에디션|리마스터|싱글|버전|리패키지)/i;
+const albRaw=t=>String(t||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');
+const albT=t=>albRaw(String(t||'').toLowerCase()
+  .replace(/[\(\[\{（][^\)\]\}）]*[\)\]\}）]/g,m=>ALB_JUNK.test(m)?' ':m)
+  .replace(/\s[-–—:]\s*[^-–—:]*(single|ep|deluxe|edition|version|remaster\w*|싱글|버전|에디션)[^-–—:]*$/i,' '));
+const albA=a=>albRaw(String(a||'').toLowerCase().split(/\s*(?:,|&|\/|;|\bfeat\.?\b|\bft\.?\b|\bx\b|\band\b|와|과)\s*/)[0]);
+const albC=u=>{u=String(u||'').split('?')[0];if(!u)return '';return u.replace(/\/[^\/]*\d+x\d+[^\/]*$/,'')};
+let dupSkip=new Set();
+function dedupeAlbums(){
+  const byT=new Map(),byC=new Map(),out=[];let merged=0;
+  for(const a of albums){
+    if(dupSkip.has(a.id)){out.push(a);continue}
+    const ak=albA(a.artist),tk=albT(a.title)+'|'+ak,ck=albC(a.cover)?albC(a.cover)+'|'+ak:'';
+    const g=(tk.length>1&&byT.get(tk))||(ck&&byC.get(ck))||null;
+    if(g){
+      ['year','genre','cover','note','intro','srcName','srcUrl','info','dzId'].forEach(k=>{if(!g[k]&&a[k])g[k]=a[k]});
+      if(albRaw(g.title)!==albT(g.title).replace(/\|.*/,'')&&albRaw(a.title)===albRaw(albT(a.title)))g.title=a.title;
+      merged++;
+      byT.set(tk,g);if(ck)byC.set(ck,g);
+    }else{out.push(a);byT.set(tk,a);if(ck)byC.set(ck,a)}
+  }
+  return merged?{list:out,merged}:null;
+}
+{const _rd=renderAlbums;renderAlbums=function(){
+  const r=dedupeAlbums();
+  if(r){const bk=albums.slice();albums=r.list;save();
+    if(typeof undoToast==='function')undoToast(`중복 앨범 ${r.merged}개를 하나로 합쳤어요.`,()=>{albums=bk;dupSkip=new Set(bk.map(x=>x.id));save();render()});}
+  _rd();
+}}
+
 // ===== 앨범: 끌어다 놓아서 순서 바꾸기 (PC: 그냥 드래그 / 모바일: 꾹 눌렀다가 드래그) =====
 (function(){
   const grid=document.getElementById('album-grid');if(!grid)return;
