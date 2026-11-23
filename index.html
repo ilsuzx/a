@@ -1988,58 +1988,179 @@ show(null);
 .api-result .btn[disabled]{opacity:.5;cursor:default}
 </style>
 <script>
-// ===== 자동 플레이리스트: 비슷한 장르·사운드 태그끼리 곡을 묶어요 =====
+// ===== 자동 플레이리스트 v2: 유사곡 찾기처럼 '곡끼리의 비슷한 정도'를 계산해서 묶어요 =====
 (function(){
   const norm=t=>String(t).toLowerCase().replace(/[\s\-_]+/g,'');
-  const tagsOf=s=>{
-    const out=new Map();
-    String(s.sound||'').concat(',',s.genre||'').split(/[,;/]/).map(x=>x.trim()).filter(Boolean).forEach(x=>{const k=norm(x);if(k&&!out.has(k))out.set(k,x)});
-    return out; // key -> 표시용 이름
-  };
-  function build(list){
-    const N=list.length,info=list.map(s=>({s,tags:tagsOf(s)}));
-    const df={},label={};
-    info.forEach(o=>o.tags.forEach((v,k)=>{df[k]=(df[k]||0)+1;if(!label[k])label[k]=v}));
-    const MIN=N<12?2:3;
-    let rest=info.filter(o=>o.tags.size),lists=[];
-    const none=info.filter(o=>!o.tags.size);
-    while(rest.length>=MIN){
-      let best=null,bs=0;
-      Object.keys(df).forEach(k=>{
-        const m=rest.filter(o=>o.tags.has(k));
-        if(m.length<MIN)return;
-        const sc=m.length*(1-0.7*df[k]/N); // 너무 흔한 태그(예: korean)는 점수를 낮춰요
-        if(sc>bs){bs=sc;best={k,m}}
-      });
-      if(!best)break;
-      lists.push({seed:best.k,items:best.m});
-      const ids=new Set(best.m);rest=rest.filter(o=>!ids.has(o));
+  const FK='aftertone_plfeat_v2',SK='aftertone_plsim_v2';
+  const rd=k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')||{}}catch(e){return {}}};
+  const wr=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+  const featCache=rd(FK),simCache=rd(SK);
+  const GEN=new Set(['rock','pop','indie','alternative','alternative rock','indie rock','electronic','hip-hop','hip hop','rap','folk','soul','jazz','singer-songwriter','female vocalists','male vocalists','chill','mellow','experimental','korean','kpop'].map(norm));
+  const TOTAL=10,USER_MAX=6; // 플레이리스트 하나에 최대 10곡 (내 곡 최대 6곡 + 비슷한 추천곡으로 채움)
+  const pool=async(items,n,fn)=>{let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const j=i++;try{await fn(items[j],j)}catch(e){}}}))};
+
+  // 1) 곡 하나를 '태그 벡터'로 바꿔요: Last.fm 태그(곡+아티스트) + 내가 입력한 장르·사운드
+  function rawVec(s){
+    const v=new Map(),lab=new Map();
+    (featCache[skey(s)]||[]).forEach(([name,w])=>{const k=norm(name);if(!k)return;v.set(k,(v.get(k)||0)+w);if(!lab.has(k))lab.set(k,name)});
+    String(s.sound||'').concat(',',s.genre||'').split(/[,;/]/).map(x=>x.trim()).filter(Boolean).forEach(x=>{
+      const k=norm(x);if(!k)return;v.set(k,Math.max(v.get(k)||0,0)+0.6*(GEN.has(k)?0.4:1));if(!lab.has(k))lab.set(k,x)});
+    return {v,lab};
+  }
+  const unit=m=>{const n=Math.sqrt([...m.values()].reduce((a,x)=>a+x*x,0))||1;const o=new Map();m.forEach((x,k)=>o.set(k,x/n));return o};
+  const cos=(a,b)=>{if(a.size>b.size)[a,b]=[b,a];let d=0;a.forEach((x,k)=>{const y=b.get(k);if(y)d+=x*y});return d};
+  const yr=s=>{const y=parseInt(s.year);return y>=1900&&y<=2100?y:0};
+
+  // 2) 곡 사이의 비슷한 정도(0~1)
+  //    태그 코사인 65% + 비슷한 아티스트(Last.fm) 20% + 같은 아티스트 10% + 발매 시기 5%
+  function buildSim(list){
+    const N=list.length,raw=list.map(rawVec),df={};
+    raw.forEach(o=>o.v.forEach((_,k)=>{df[k]=(df[k]||0)+1}));
+    const label={};raw.forEach(o=>o.lab.forEach((n,k)=>{if(!label[k])label[k]=n}));
+    // 거의 모든 곡에 붙은 태그는 변별력이 없어서 idf로 비중을 낮춰요
+    const vecs=raw.map(o=>{const m=new Map();o.v.forEach((w,k)=>m.set(k,w*Math.log(1+N/df[k])));return unit(m)});
+    const link=(a,b)=>{const ka=recNorm(a.artist),kb=recNorm(b.artist);
+      return Math.max((simCache[ka]||{})[kb]||0,(simCache[kb]||{})[ka]||0)};
+    const S=Array.from({length:N},()=>new Array(N).fill(0));
+    for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
+      const a=list[i],b=list[j],same=recNorm(a.artist)===recNorm(b.artist);
+      const ya=yr(a),yb=yr(b),yv=ya&&yb?Math.max(0,1-Math.abs(ya-yb)/10):0.5;
+      const sc=0.65*cos(vecs[i],vecs[j])+0.2*(same?0:link(a,b))+0.1*(same?1:0)+0.05*yv;
+      S[i][j]=S[j][i]=sc;
     }
-    // 남은 곡은 태그가 가장 많이 겹치는 목록에 합치고, 겹치는 게 없으면 기타로
-    const etc=[...none];
-    rest.forEach(o=>{
-      let bi=-1,bsc=0;
-      lists.forEach((l,i)=>{let sc=0;o.tags.forEach((v,k)=>{if(l.items.some(x=>x.tags.has(k)))sc+=1/df[k]});
-        if(l.items.some(x=>x.s.artist&&x.s.artist.toLowerCase()===String(o.s.artist).toLowerCase()))sc+=1;
-        if(sc>bsc){bsc=sc;bi=i}});
-      if(bi>=0)lists[bi].items.push(o);else etc.push(o);
-    });
-    // 이름: 대표 태그 + 목록 안에서 절반 이상이 공유하는 가장 특징적인 태그
-    const res=lists.map(l=>{
-      const cnt={};l.items.forEach(o=>o.tags.forEach((v,k)=>{cnt[k]=(cnt[k]||0)+1}));
-      const co=Object.keys(cnt).filter(k=>k!==l.seed&&cnt[k]>=Math.max(2,l.items.length*0.5)).sort((a,b)=>cnt[b]/df[b]-cnt[a]/df[a]||cnt[b]-cnt[a])[0];
-      const sig=new Set([l.seed,co].filter(Boolean));
-      const items=l.items.slice().sort((a,b)=>{const f=o=>[...sig].filter(k=>o.tags.has(k)).length;return f(b)-f(a)||String(a.s.artist).localeCompare(String(b.s.artist))}).map(o=>o.s);
-      const tags=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).slice(0,4).map(k=>label[k]);
-      return {name:[...sig].map(k=>label[k]).join(' · '),items,tags};
-    });
-    if(etc.length>=MIN)res.push({name:'기타 모음',items:etc.map(o=>o.s),tags:[]});
-    return {lists:res.sort((a,b)=>b.items.length-a.items.length),left:etc.length<MIN?etc.length:0};
+    return {S,vecs,label,df,N};
   }
 
-  let made=null,openSet=new Set(),queue=[];
+  // 3) 평균 연결 계층 군집화: 가장 비슷한 두 묶음부터 합치고, 기준보다 멀어지면 멈춰요
+  function cluster(list,F){
+    const {S,N}=F,MIN=N<12?2:3,MAXSZ=Math.min(40,Math.max(10,Math.ceil(N*0.4)));
+    const all=[];for(let i=0;i<N;i++)for(let j=i+1;j<N;j++)all.push(S[i][j]);all.sort((a,b)=>a-b);
+    const T=Math.min(0.5,Math.max(0.18,all.length?all[Math.floor(all.length*0.75)]:0.3));
+    const L=S.map(r=>r.slice()),act=new Array(N).fill(true),size=new Array(N).fill(1),mem=list.map((_,i)=>[i]);
+    const merge=(minSim,limitBig)=>{
+      for(;;){
+        let bi=-1,bj=-1,bv=-1;
+        for(let i=0;i<N;i++){if(!act[i])continue;for(let j=i+1;j<N;j++){if(act[j]&&L[i][j]>bv&&size[i]+size[j]<=MAXSZ){bv=L[i][j];bi=i;bj=j}}}
+        if(bi<0)break;
+        if(!limitBig&&bv<minSim)break;
+        if(limitBig){const big=act.reduce((c,a,i)=>c+(a&&size[i]>=MIN?1:0),0);if(big<=limitBig)break}
+        const si=size[bi],sj=size[bj];
+        for(let k=0;k<N;k++){if(!act[k]||k===bi||k===bj)continue;L[bi][k]=L[k][bi]=(L[bi][k]*si+L[bj][k]*sj)/(si+sj)}
+        mem[bi]=mem[bi].concat(mem[bj]);size[bi]=si+sj;act[bj]=false;
+      }
+    };
+    merge(T,0);
+    merge(0,10); // 묶음이 너무 많으면(10개 초과) 가장 가까운 것끼리 더 합쳐요
+    let groups=[],small=[];
+    mem.forEach((m,i)=>{if(!act[i])return;(m.length>=MIN?groups:small).push(m)});
+    const etc=[];
+    small.flat().forEach(i=>{ // 작은 묶음의 곡은 평균 유사도가 가장 높은 플레이리스트로
+      let bg=-1,bv=0;
+      groups.forEach((g,gi)=>{const v=g.reduce((a,j)=>a+S[i][j],0)/g.length;if(v>bv){bv=v;bg=gi}});
+      if(bg>=0&&bv>=T*0.6)groups[bg].push(i);else etc.push(i);
+    });
+    return {groups,etc,MIN};
+  }
+
+  // 4) 이름·대표 태그·정렬(가장 대표적인 곡에서 시작해서 비슷한 곡 순서로 이어요)
+  function finish(list,F,C){
+    const {S,vecs,label,df,N}=F;
+    const out=C.groups.map(g=>{
+      const cen=new Map();g.forEach(i=>vecs[i].forEach((w,k)=>cen.set(k,(cen.get(k)||0)+w)));
+      const ranked=[...cen.entries()].filter(([k])=>g.filter(i=>vecs[i].has(k)).length>=Math.max(2,g.length*0.4)).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+      const spec=ranked.filter(k=>!GEN.has(k)),pick=(spec.length>=2?spec:[...spec,...ranked.filter(k=>GEN.has(k))]).slice(0,2);
+      const tags=[...new Set([...spec,...ranked])].slice(0,4).map(k=>label[k]);
+      const avg=i=>g.reduce((a,j)=>a+(j===i?0:S[i][j]),0)/Math.max(1,g.length-1);
+      let cur=g.reduce((b,i)=>avg(i)>avg(b)?i:b,g[0]);
+      const left=new Set(g);left.delete(cur);const order=[cur];
+      while(left.size){let b=-1,bv=-9;left.forEach(j=>{const v=S[cur][j]-(recNorm(list[cur].artist)===recNorm(list[j].artist)?0.12:0);if(v>bv){bv=v;b=j}});order.push(b);left.delete(b);cur=b}
+      let sum=0,c=0;for(let a=0;a<g.length;a++)for(let b=a+1;b<g.length;b++){sum+=S[g[a]][g[b]];c++}
+      // 곡이 많으면 즐겨찾기·대표성이 높은 곡 위주로 최대 USER_MAX곡만 담아요 (순서는 그대로)
+      const rank=g.slice().sort((a,b)=>((list[b].fav?1:0)-(list[a].fav?1:0))||avg(b)-avg(a)),keep=new Set(rank.slice(0,USER_MAX));
+      return {name:pick.map(k=>label[k]).join(' · ')||'비슷한 곡 모음',items:order.filter(i=>keep.has(i)).map(i=>list[i]),total:g.length,cen:unit(cen),tags,cohesion:c?sum/c:0};
+    });
+    if(C.etc.length>=C.MIN)out.push({name:'기타 모음',items:C.etc.slice(0,TOTAL).map(i=>list[i]),total:C.etc.length,tags:[],cohesion:0});
+    return {lists:out.sort((a,b)=>b.total-a.total),left:C.etc.length<C.MIN?C.etc.length:0,ids:new Set(list.map(s=>s.id)),F:{df,N}};
+  }
+  const build=list=>{const F=buildSim(list);return finish(list,F,cluster(list,F))};
+  window.__plBuild=build; // 점검용
+
+  // 5) 내 곡과 비슷한 '내 보관함에 없는' 곡을 찾아서 섞어요 (유사곡 → 태그 적합도로 재정렬 → 미리듣기 확인)
+  const CK='aftertone_plcand_v1',candCache=rd(CK),tagMem=new Map(),extMap=new Map();
+  async function simOf(s){
+    const k=skey(s);if(candCache[k])return candCache[k];
+    let r=[];try{r=await getSimilar(s.artist,s.title,30)}catch(e){}
+    r=r.map(x=>({title:x.title,artist:x.artist,match:x.match||0.3}));
+    if(r.length)candCache[k]=r.slice(0,30);return r;
+  }
+  async function tagFit(x,cen,df,N){
+    const key=skey(x);let t=tagMem.get(key);
+    if(!t){try{t=await fullTags(x.artist,x.title)}catch(e){t=new Map()}tagMem.set(key,t)}
+    if(!t||!t.size)return null;
+    const v=new Map();t.forEach((w,name)=>{const k=norm(name);v.set(k,(v.get(k)||0)+w*Math.log(1+N/(df[k]||0.5)))});
+    return cos(unit(v),cen);
+  }
+  function enrich(x){
+    return new Promise(res=>{
+      try{searchTrack(x.title,x.artist,data=>{
+        if(!data||data.error)return res(null);
+        const best=(data.results||[]).find(r=>{if(!r.trackName||!r.previewUrl)return false;const a=recNorm(r.artistName),b=recNorm(x.artist);return a&&b&&(a.includes(b)||b.includes(a))});
+        if(!best||recRegHook(x)||recRegHook({title:best.trackName,artist:best.artistName}))return res(null);
+        const it={id:'ext:'+recNorm(x.title+x.artist),title:x.title,artist:x.artist,cover:best.artworkUrl100||best.artworkUrl60||best._cover||'',preview:best.previewUrl,ext:true};
+        extMap.set(it.id,it);res(it);
+      })}catch(e){res(null)}
+    });
+  }
+  const weave=(users,exts)=>{ // 내 곡 사이사이에 추천곡을 고르게 끼워 넣어요
+    if(!exts.length)return users;
+    const out=[],step=users.length/exts.length;let ei=0;
+    users.forEach((u,i)=>{out.push(u);if(ei<exts.length&&Math.floor((i+1)/step)>ei)out.push(exts[ei++])});
+    while(ei<exts.length)out.push(exts[ei++]);return out;
+  };
+  async function mix(m,prog){
+    const lists=m.lists.filter(l=>l.cen),taken=new Set();
+    let done=0;const total=lists.reduce((a,l)=>a+l.items.length+Math.max(0,TOTAL-l.items.length),0);
+    const bump=()=>prog(Math.min(++done,total),total);
+    for(const l of lists){
+      const need=TOTAL-l.items.length;l.userN=l.items.length;l.extN=0;
+      const agg=new Map();
+      await pool(l.items,4,async s=>{
+        recFilterHook(await simOf(s)).forEach(c=>{const k=skey(c);if(taken.has(k))return;
+          const e=agg.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0};e.sum+=(c.match||0.3);e.hits++;agg.set(k,e)});
+        bump()});
+      if(need<=0)continue;
+      let c=[...agg.values()].map(x=>({...x,score:x.sum*(1+0.6*(x.hits-1))})).sort((a,b)=>b.score-a.score).slice(0,need*3);
+      const mx=(c[0]&&c[0].score)||1;
+      await pool(c,4,async x=>{x.cos=await tagFit(x,l.cen,m.F.df,m.F.N)});
+      c.forEach(x=>{const sc=x.score/mx;x.final=x.cos==null?sc:0.5*sc+0.5*x.cos});
+      c.sort((a,b)=>b.final-a.final);
+      const picked=[],artCnt={};
+      for(let k=0;k<c.length&&picked.length<need;k+=4){
+        const batch=c.slice(k,k+4).filter(x=>(artCnt[recNorm(x.artist)]||0)<2);
+        const res=await Promise.all(batch.map(enrich));
+        res.forEach(r=>{if(!r||picked.length>=need)return;const a=recNorm(r.artist);if((artCnt[a]||0)>=2||taken.has(skey(r)))return;artCnt[a]=(artCnt[a]||0)+1;picked.push(r);taken.add(skey(r))});
+      }
+      for(let i=0;i<need;i++)bump();
+      l.extN=picked.length;l.items=weave(l.items,picked);
+    }
+    wr(CK,candCache);
+  }
+  // 추천곡은 내 보관함에 없으니 재생 함수를 살짝 확장해요
+  const _playSong=playSong;
+  playSong=function(id){
+    if(String(id).startsWith('ext:')){
+      const it=extMap.get(id);if(!it||!it.preview)return;
+      if(playingId===id){player.paused?player.play().catch(()=>toast('재생할 수 없어요.')):player.pause();return}
+      playingId=id;player.src=it.preview;$('#mini-title').textContent=it.title;$('#mini-artist').textContent=it.artist;$('#mini-seek').value=0;
+      player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));refreshRows();return;
+    }
+    return _playSong(id);
+  };
+  miniUI=function(){const on=playingId&&(songs.some(s=>s.id===playingId)||extMap.has(playingId));$('#mini').style.display=on?'flex':'none';document.body.classList.toggle('has-mini',!!on);$('#mini-toggle').textContent=player.paused?'▶':'❚❚'};
+
+  let made=null,openSet=new Set(),queue=[],busy=false,stale=false;
   const host=document.createElement('div');host.className='block';host.id='pl-block';
-  host.innerHTML='<div class="head" style="margin-bottom:8px"><h2>자동 플레이리스트</h2><div style="display:flex;gap:8px"><button class="btn small" id="pl-make">플리 만들기</button></div></div><p class="taste-text" id="pl-note" style="margin:0 0 12px">비슷한 장르·사운드 태그를 가진 곡끼리 묶어서 플레이리스트로 만들어요.</p><div id="pl-grid" class="pl-grid"></div>';
+  host.innerHTML='<div class="head" style="margin-bottom:8px"><h2>자동 플레이리스트</h2><div style="display:flex;gap:8px"><button class="btn small" id="pl-make">플리 만들기</button></div></div><p class="taste-text" id="pl-note" style="margin:0 0 12px">내 곡을 비슷한 것끼리 묶고, 내 보관함에 없는 비슷한 곡도 섞어서 한 플레이리스트에 최대 10곡으로 만들어요.</p><div id="pl-grid" class="pl-grid"></div>';
   const donutBlock=document.querySelector('#genre-donut').closest('.block');
   donutBlock.parentNode.insertBefore(host,donutBlock);
 
@@ -2051,23 +2172,49 @@ show(null);
   function draw(){
     const grid=$('#pl-grid');if(!grid)return;
     if(!made){grid.innerHTML='';return}
-    if(!made.lists.length){grid.innerHTML='<div class="empty"><b>묶을 곡이 부족해요</b>장르나 사운드 태그가 있는 곡이 더 있으면 만들 수 있어요.</div>';return}
+    if(!made.lists.length){grid.innerHTML='<div class="empty"><b>묶을 곡이 부족해요</b>비슷한 곡이 더 모이면 만들 수 있어요.</div>';return}
     grid.innerHTML=made.lists.map((l,i)=>{
       const playable=l.items.filter(s=>s.preview).length,open=openSet.has(i);
+      const playing=queue.includes(playingId)&&!player.paused&&l.items.some(x=>x.id===playingId);
       return `<div class="pl-card" data-i="${i}">
-        <div class="pl-top">${mosaic(l.items)}<div class="pl-info"><strong>${esc(l.name)}</strong><span>${l.items.length}곡${playable<l.items.length?` · 미리듣기 ${playable}곡`:''}</span>${l.tags.length?`<div class="pl-tags">${l.tags.map(t=>`<em>${esc(t)}</em>`).join('')}</div>`:''}</div></div>
-        <div class="pl-actions"><button class="btn small" data-pl="play" ${playable?'':'disabled'}>${l.items.some(x=>x.id===playingId)&&queue.includes(playingId)&&!player.paused?'■ 정지':'▶ 재생'}</button><button class="btn ghost small" data-pl="copy">목록 복사</button><button class="btn ghost small" data-pl="toggle">${open?'접기':'곡 보기'}</button></div>
-        ${open?`<div class="pl-list">${l.items.map((s,j)=>`<div class="pl-row${playingId===s.id?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${esc(s.title)}<small>${esc(s.artist)}</small></span>${s.preview?`<button class="icon-btn" data-plsong="${esc(s.id)}" aria-label="미리듣기">${playingId===s.id&&!player.paused?'❚❚':'▶'}</button>`:''}</div>`).join('')}</div>`:''}
-      </div>`}).join('')+(made.left?`<p class="taste-text">태그가 없어 묶이지 않은 곡이 ${made.left}곡 있어요.</p>`:'');
+        <div class="pl-top">${mosaic(l.items)}<div class="pl-info"><strong>${esc(l.name)}</strong><span>${l.items.length}곡${l.extN?` (내 곡 ${l.userN} + 추천 ${l.extN})`:''}${l.cohesion?` · 비슷한 정도 ${Math.round(Math.min(1,l.cohesion/0.6)*100)}%`:''}${playable<l.items.length?` · 미리듣기 ${playable}곡`:''}</span>${l.tags.length?`<div class="pl-tags">${l.tags.map(t=>`<em>${esc(t)}</em>`).join('')}</div>`:''}</div></div>
+        <div class="pl-actions"><button class="btn small" data-pl="play" ${playable?'':'disabled'}>${playing?'■ 정지':'▶ 재생'}</button><button class="btn ghost small" data-pl="copy">목록 복사</button><button class="btn ghost small" data-pl="toggle">${open?'접기':'곡 보기'}</button></div>
+        ${open?`<div class="pl-list">${l.items.map((s,j)=>`<div class="pl-row${playingId===s.id?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.ext?'<b class="pl-ext">추천</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${s.ext?`<button class="icon-btn" data-pladd="${esc(s.id)}" title="내 노래에 추가" aria-label="내 노래에 추가">＋</button>`:''}${s.preview?`<button class="icon-btn" data-plsong="${esc(s.id)}" aria-label="미리듣기">${playingId===s.id&&!player.paused?'❚❚':'▶'}</button>`:''}</div>`).join('')}</div>`:''}
+      </div>`}).join('')+(made.left?`<p class="taste-text">어느 목록과도 비슷하지 않은 곡이 ${made.left}곡 있어요.</p>`:'')+(made.lists.some(l=>l.cen&&l.total>l.userN)?`<p class="taste-text">곡이 많은 목록은 대표곡 ${USER_MAX}곡만 담았어요.</p>`:'')+(stale?'<p class="taste-text">곡이 추가되었어요. 다시 만들면 반영돼요.</p>':'');
   }
-  function make(){
+  async function make(){
+    if(busy)return;
     if(songs.length<3){toast('곡이 3곡 이상 있어야 플레이리스트를 만들 수 있어요.');return}
-    made=build(songs);openSet=new Set();draw();
-    $('#pl-make').textContent='다시 만들기';
-    toast(made.lists.length?`${made.lists.length}개의 플레이리스트를 만들었어요.`:'묶을 곡이 부족해요.');
+    busy=true;const btn=$('#pl-make');btn.disabled=true;
+    try{
+      const need=songs.filter(s=>!(featCache[skey(s)]&&featCache[skey(s)].length));
+      const arts=[...new Map(songs.map(s=>[recNorm(s.artist),s.artist])).entries()].filter(([k])=>!(k in simCache));
+      let done=0,total=need.length+arts.length,miss=0;
+      const upd=()=>{btn.textContent=total?`분석 중 ${done}/${total}`:'만드는 중…'};upd();
+      // 곡별 태그 (이미 가져온 곡은 저장해 둔 값을 써요)
+      await pool(need,4,async s=>{
+        let m=new Map();try{m=await fullTags(s.artist,s.title)}catch(e){}
+        if(m&&m.size)featCache[skey(s)]=[...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,25).map(([k,w])=>[k,Math.round(w*1000)/1000]);else miss++;
+        done++;upd()});
+      // 아티스트별 '비슷한 아티스트'
+      await pool(arts,4,async([k,name])=>{
+        try{const d=await lfm('artist.getSimilar',{artist:name,limit:'50'});
+          const l=arr(d&&d.similarartists&&d.similarartists.artist);
+          if(l.length||(d&&d.similarartists)){const o={};l.forEach(a=>{o[recNorm(a.name)]=Number(a.match)||0});simCache[k]=o}}catch(e){}
+        done++;upd()});
+      wr(FK,featCache);wr(SK,simCache);
+      made=build(songs);
+      try{await mix(made,(a,b)=>{btn.textContent=`비슷한 곡 찾는 중 ${a}/${b}`})}catch(e){}
+      openSet=new Set();stale=false;draw();
+      btn.textContent='다시 만들기';
+      toast(miss>need.length/2&&need.length?'태그 정보를 거의 못 가져와서 입력한 장르·사운드 위주로 묶었어요.':(made.lists.length?`${made.lists.length}개의 플레이리스트를 만들었어요.`:'묶을 곡이 부족해요.'));
+    }catch(e){toast('플레이리스트를 만들지 못했어요.')}
+    busy=false;btn.disabled=false;
   }
   $('#pl-make').onclick=make;
   $('#pl-grid').addEventListener('click',e=>{
+    const ab=e.target.closest('[data-pladd]');
+    if(ab){const it=extMap.get(ab.dataset.pladd);if(it)addRecommended(it);return}
     const sb=e.target.closest('[data-plsong]');
     if(sb){queue=[];playSong(sb.dataset.plsong);return}
     const b=e.target.closest('[data-pl]');if(!b)return;
@@ -2079,30 +2226,24 @@ show(null);
       if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,()=>toast('복사하지 못했어요.'));
       else{const t=document.createElement('textarea');t.value=text;document.body.append(t);t.select();try{document.execCommand('copy');ok()}catch(_){toast('복사하지 못했어요.')}t.remove()}
     }else if(b.dataset.pl==='play'){
-      queue=l.items.filter(s=>s.preview).map(s=>s.id);
-      if(!queue.length)return;
+      const q=l.items.filter(s=>s.preview).map(s=>s.id);if(!q.length)return;
       if(queue.includes(playingId)&&!player.paused&&l.items.some(x=>x.id===playingId)){stopPlayer();queue=[];draw();return}
-      if(playingId===queue[0])stopPlayer();
-      playSong(queue[0]);
+      queue=q;if(playingId===q[0])stopPlayer();playSong(q[0]);
     }
   });
-  // 한 곡이 끝나면 다음 곡으로 이어서 재생
-  player.addEventListener('ended',()=>{
-    const i=queue.indexOf(playingId);
-    if(i>=0&&i<queue.length-1)playSong(queue[i+1]);
-    else if(i===queue.length-1&&i>=0){queue=[]}
-  });
+  player.addEventListener('ended',()=>{const i=queue.indexOf(playingId);if(i>=0&&i<queue.length-1)playSong(queue[i+1]);else if(i>=0)queue=[]});
   $('#mini-close').addEventListener('click',()=>{queue=[]});
   ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{if(made)draw()}));
   const _r=render;
   render=function(){_r();
-    if(made){ // 곡이 바뀌면 목록도 새로 만들어요
+    if(made&&!busy){ // 지운 곡은 목록에서 빼고, 새로 추가한 곡이 있으면 다시 만들라고 알려요
+      const ids=new Set(songs.map(s=>s.id));
+      made.lists.forEach(l=>{l.items=l.items.filter(s=>s.ext?!recRegHook(s):ids.has(s.id));l.extN=l.items.filter(s=>s.ext).length;l.userN=l.items.length-l.extN});made.lists=made.lists.filter(l=>l.items.length);
+      stale=songs.some(s=>!made.ids.has(s.id));
       if(songs.length<3){made=null;$('#pl-make').textContent='플리 만들기'}
-      else{const o=openSet;made=build(songs);openSet=new Set([...o].filter(i=>i<made.lists.length))}
       draw();
     }
   };
-  // 탭 이동 시 플레이리스트 재생이 이어지지 않도록 (미니 플레이어는 이미 정지됨)
   document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{queue=[]}));
 })();
 </script>
@@ -2125,6 +2266,7 @@ show(null);
 .pl-n{width:20px;color:var(--muted);font-size:12px;text-align:right;flex:none}
 .pl-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-t small{color:var(--muted);margin-left:6px;font-size:12px}
+.pl-ext{display:inline-block;font-size:10px;font-weight:600;color:var(--muted);background:var(--soft);border-radius:999px;padding:1px 6px;margin-right:6px;vertical-align:1px}
 .pl-actions .btn[disabled]{opacity:.4;pointer-events:none}
 @media(max-width:600px){.pl-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
