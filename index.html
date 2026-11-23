@@ -1512,6 +1512,8 @@ $('#pl-picker-go').onclick=plPickerApply;
 const plNorm=v=>String(v||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
 const plCore=v=>plNorm(String(v||'').replace(/[\(\[][^\)\]]*[\)\]]/g,'').replace(/\s[-–—]\s.*$/,''))||plNorm(v);
 const plLast={dz:0,ap:0},plGap={dz:260,ap:1300};
+let plWhy=''; // 마지막으로 찾지 못한 곡의 사유
+const PL_WHY={api:'검색 서버 응답 없음',none:'검색 결과 없음',nomatch:'일치하는 곡 없음',preview:'미리듣기 제공 안 됨'};
 async function plWait(k){const w=plLast[k]+plGap[k]-Date.now();if(w>0)await new Promise(r=>setTimeout(r,w));plLast[k]=Date.now()}
 async function plDz(term){
   for(let k=0;k<3;k++){
@@ -1520,7 +1522,7 @@ async function plDz(term){
     if(d&&!d.error)return d.results||[];
     await new Promise(r=>setTimeout(r,1500*(k+1)));
   }
-  return [];
+  return null;
 }
 async function plAp(term){
   for(let k=0;k<3;k++){
@@ -1529,7 +1531,7 @@ async function plAp(term){
     if(d&&!d.error)return d.results||[];
     await new Promise(r=>setTimeout(r,k?9000:4000));
   }
-  return [];
+  return null;
 }
 async function plLookup(it,cancelled){
   const strip=v=>String(v||'').replace(/"/g,'').trim();
@@ -1546,18 +1548,26 @@ async function plLookup(it,cancelled){
     return tn.some(q=>q.length>=2&&xt.length>=2&&(xt.includes(q)||q.includes(xt)))?1:0;
   };
   const pick=list=>{let ex=null,lo=null,inf=null;for(const x of list||[]){const v=sc(x);if(!v)continue;if(x.previewUrl){if(v===3){if(!ex)ex=x}else if(!lo)lo=x}else if(!inf)inf=x}return{ex,lo,inf}};
-  const steps=[()=>plDz('artist:"'+a0+'" track:"'+t0+'"'),()=>plDz(t0+' '+a0),()=>plAp(t0+' '+a0)];
-  if(t1!==t0||a1!==a0){steps.push(()=>plAp(t1+' '+a1));steps.push(()=>plDz(t1+' '+a1))}
-  steps.push(()=>plDz(t1));
-  let lo=null,inf=null;
-  for(const run of steps){
+  // 아티스트 표기가 달라도(한글/영문 등) 검색 순위 맨 위에서 곡명이 정확히 같고 미리듣기가 있으면 마지막 수단으로 써요
+  const top=list=>{for(const x of list||[]){if(x&&x.trackName&&x.previewUrl&&tn.includes(plCore(x.trackName)))return x}return null};
+  const steps=[{f:()=>plDz('artist:"'+a0+'" track:"'+t0+'"')},{f:()=>plDz(t0+' '+a0),rel:true},{f:()=>plAp(t0+' '+a0),rel:true}];
+  if(t1!==t0||a1!==a0){steps.push({f:()=>plAp(t1+' '+a1)});steps.push({f:()=>plDz(t1+' '+a1)})}
+  steps.push({f:()=>plDz(t1)});
+  let lo=null,inf=null,rel=null,errs=0,seen=0;
+  for(const st of steps){
     if(cancelled&&cancelled())break;
-    const r=pick(await run());
-    if(r.ex)return r.ex;
+    const list=await st.f();
+    if(list===null){errs++;continue}
+    seen+=list.length;
+    const r=pick(list);
+    if(r.ex){plWhy='';return r.ex}
     if(r.lo&&!lo)lo=r.lo;
     if(r.inf&&!inf)inf=r.inf;
+    if(st.rel&&!rel)rel=top(list);
   }
-  return lo||inf||null;
+  const out=lo||rel||inf||null;
+  plWhy=(out&&out.previewUrl)?'':inf?PL_WHY.preview:(!seen&&errs)?PL_WHY.api:!seen?PL_WHY.none:PL_WHY.nomatch;
+  return out;
 }
 $('#pl-cancel').onclick=()=>{plCancel=true};
 $('#pl-run').onclick=async()=>{
@@ -1566,7 +1576,7 @@ $('#pl-run').onclick=async()=>{
   if(!items.length){toast('인식된 곡이 없어요. 형식을 확인해 주세요.');return}
   const lookup=true,wantSound=$('#pl-sound').checked,st=$('#pl-status');
   const keys=new Set(songs.map(skey)),fresh=[],newAlbums=[],base=Date.now();
-  let dup=0,found=0,done=0,nop=0,proc=0;const etaT0=Date.now();
+  let dup=0,found=0,done=0,nop=0,proc=0;const whyN={};const etaT0=Date.now();
   const eta=i=>{if(proc<2)return ' · 남은 시간 계산 중';const sec=(Date.now()-etaT0)/proc*(items.length-i)/1000;return sec<60?' · 1분 미만 남음':` · 약 ${Math.ceil(sec/60)}분 남음`};
   plBusy=true;plCancel=false;$('#pl-run').disabled=true;$('#pl-cancel').style.display='';
   for(let i=0;i<items.length&&!plCancel;i++){
@@ -1576,7 +1586,7 @@ $('#pl-run').onclick=async()=>{
     const s={id:uid(),title:it.title,artist:it.artist,album:it.album,year:it.year,genre:it.genre,sound:'',cover:'',note:'',preview:'',created:base-i};
     if(lookup){
       try{
-        const b=await plLookup(it,()=>plCancel);
+        plWhy='';const b=await plLookup(it,()=>plCancel);
         if(b){
           found++;
           s.cover=b._cover||largeArtwork(b.artworkUrl100||b.artworkUrl60)||'';
@@ -1593,10 +1603,10 @@ $('#pl-run').onclick=async()=>{
             }
           }
         }
-      }catch(e){}
+      }catch(e){plWhy=PL_WHY.api}
     }
     proc++;
-    if(lookup&&!s.preview){nop++;if(!skipped.some(x=>skey(x)===skey(s)))skipped.push({id:uid(),title:s.title,artist:s.artist,album:s.album,year:s.year,genre:s.genre,cover:s.cover,created:base-i});continue} // 미리듣기 없는 곡은 제외 목록으로
+    if(lookup&&!s.preview){nop++;const why=plWhy||PL_WHY.nomatch;whyN[why]=(whyN[why]||0)+1;const ex=skipped.find(x=>skey(x)===skey(s));if(ex)ex.why=why;else skipped.push({id:uid(),title:s.title,artist:s.artist,album:s.album,year:s.year,genre:s.genre,cover:s.cover,why,created:base-i});continue} // 미리듣기 없는 곡은 제외 목록으로
     if(wantSound)s.sound=await plSound(s.artist,s.title);
     fresh.push(s);done++;
     if(s.album&&!albums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase())&&!newAlbums.some(a=>a.title.toLowerCase()===s.album.toLowerCase()&&a.artist.toLowerCase()===s.artist.toLowerCase()))
@@ -1605,7 +1615,7 @@ $('#pl-run').onclick=async()=>{
   songs=[...fresh,...songs];albums=[...newAlbums,...albums];
   save();render();
   plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';
-  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡은 설정의 '제외된 곡'으로`:''}${plCancel?' · 중단됨':''}`;
+  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡은 설정의 '제외된 곡'으로 (${Object.entries(whyN).map(([k,v])=>k+' '+v+'곡').join(', ')})`:''}${plCancel?' · 중단됨':''}`;
   st.textContent=msg;toast(msg);
 };
 // ===== 제외된 곡 =====
@@ -1615,7 +1625,7 @@ function renderSkipped(){
   if(skipped.length!==n0)save();
   $('#skipped-count').textContent=skipped.length?`${skipped.length}곡`:'';
   $('#skipped-clear').style.display=skipped.length?'':'none';
-  $('#skipped-list').innerHTML=skipped.map(x=>`<div class="song-row"><div class="mini-cover">${cover(x.cover)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}${x.album?' · '+esc(x.album):''}</span></div>${x.genre?`<span class="song-tag">${esc(x.genre)}</span>`:''}<div class="row-actions"><button class="btn secondary small" onclick="searchSkipped('${x.id}')">다시 검색</button><button class="icon-btn" title="목록에서 삭제" aria-label="목록에서 삭제" onclick="removeSkipped('${x.id}')">×</button></div></div>`).join('')||'<div class="empty"><b>제외된 곡이 없어요</b>미리듣기가 없어 빠진 곡이 여기에 모여요.</div>';
+  $('#skipped-list').innerHTML=skipped.map(x=>`<div class="song-row"><div class="mini-cover">${cover(x.cover)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}${x.album?' · '+esc(x.album):''}${x.why?' · '+esc(x.why):''}</span></div>${x.genre?`<span class="song-tag">${esc(x.genre)}</span>`:''}<div class="row-actions"><button class="btn secondary small" onclick="searchSkipped('${x.id}')">다시 검색</button><button class="icon-btn" title="목록에서 삭제" aria-label="목록에서 삭제" onclick="removeSkipped('${x.id}')">×</button></div></div>`).join('')||'<div class="empty"><b>제외된 곡이 없어요</b>미리듣기가 없어 빠진 곡이 여기에 모여요.</div>';
 }
 function skippedToSong(x,t){
   const s={id:uid(),title:x.title,artist:x.artist,album:x.album||'',year:x.year||'',genre:x.genre||'',sound:'',cover:x.cover||'',note:'',preview:'',created:t};
