@@ -156,7 +156,7 @@ h1{font-size:30px}
 <header>
   <div class="brand">AFTERTONE</div>
   <nav class="nav">
-    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="playlist">플리</button><button data-page="skipped">제외</button><button data-page="about">설정</button>
+    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="playlist">플리</button><button data-page="about">설정</button>
   </nav>
 </header>
 
@@ -189,15 +189,11 @@ h1{font-size:30px}
 <section class="page" id="page-playlist">
   <div class="head"><h1>플리</h1></div>
 </section>
-<section class="page" id="page-skipped">
-  <div class="head"><div><h1>제외된 곡</h1><p class="taste-text">플레이리스트를 가져올 때 미리듣기가 없어 빠진 곡이에요. 직접 골라서 추가할 수 있어요.</p></div><div style="display:flex;gap:8px"><button class="btn secondary" id="skipped-clear">비우기</button><button class="btn" id="skipped-all">모두 추가</button></div></div>
-  <div class="count" id="skipped-count"></div>
-  <div class="song-list" id="skipped-list"></div>
-</section>
 
 <section class="page about" id="page-about">
   <div class="backup" id="uid-box"><h2>내 고유 ID</h2><div id="uid-body"></div></div>
   <div class="backup" id="blocked-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">추천 차단한 곡 <span class="taste-text" id="blocked-count" style="font-size:13px"></span></h2><div style="display:flex;gap:4px"><button class="btn ghost small" id="blocked-clear" style="display:none">모두 해제</button><button class="btn ghost small" id="blocked-toggle" aria-expanded="false">펼치기</button></div></div><div id="blocked-body" style="display:none"><div class="song-list" id="blocked-list"></div></div></div>
+  <div class="backup" id="skipped-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">제외된 곡 <span class="taste-text" id="skipped-count" style="font-size:13px"></span></h2><div style="display:flex;gap:4px"><button class="btn ghost small" id="skipped-all" style="display:none">모두 추가</button><button class="btn ghost small" id="skipped-clear" style="display:none">비우기</button><button class="btn ghost small" id="skipped-toggle" aria-expanded="false">펼치기</button></div></div><p class="taste-text" style="font-size:13px;margin:8px 0 0">플레이리스트를 가져올 때 미리듣기가 없어 빠진 곡이에요. 직접 골라서 추가할 수 있어요.</p><div id="skipped-body" style="display:none"><div class="song-list" id="skipped-list"></div></div></div>
   <div class="backup"><h2>백업과 복원</h2><p>데이터는 이 브라우저에만 저장돼요. 파일로 내보내 두면 기기를 바꾸거나 캐시를 지워도 복원할 수 있어요.</p><div class="backup-actions"><button class="btn" id="export-btn">내보내기</button><button class="btn secondary" id="import-merge">가져오기 (합치기)</button><button class="btn secondary" id="import-replace">가져오기 (덮어쓰기)</button></div><input type="file" id="import-file" accept=".json,application/json" style="display:none"></div>
 </section>
 </div>
@@ -238,12 +234,13 @@ h1{font-size:30px}
 
 <div class="modal-backdrop" id="pl-modal"><div class="modal">
   <div class="modal-head"><h2>플레이리스트 가져오기</h2><button class="close" data-close>×</button></div>
-  <p class="taste-text" style="margin:0 0 12px;font-size:13px">한 줄에 한 곡씩 붙여넣거나 txt/csv 파일을 선택하세요.<br>지원: 애플 뮤직 복사/내보내기(탭 구분) · 곡명 - 아티스트 · CSV</p>
+  <p class="taste-text" style="margin:0 0 12px;font-size:13px">한 줄에 한 곡씩 붙여넣거나 txt/csv 파일을 선택하세요.<br>지원: 애플 뮤직 복사/내보내기(탭 구분) · 곡명 - 아티스트 · CSV<br>특정 플레이리스트만: 뮤직 앱에서 그 플레이리스트를 선택하고 '플레이리스트 내보내기'로 만든 파일을 올리거나, '라이브러리 내보내기'(.xml) 파일을 올려서 목록에서 고르세요.</p>
   <div class="field"><textarea id="pl-text" style="min-height:170px" placeholder="예)&#10;Hype Boy - NewJeans&#10;Ditto&#9;NewJeans&#9;OMG"></textarea></div>
   <div class="toolbar" style="margin-top:10px;align-items:center">
     <select id="pl-format"><option value="title-artist">곡명 - 아티스트</option><option value="artist-title">아티스트 - 곡명</option></select>
-    <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,text/plain" style="display:none">
+    <label class="btn secondary small" for="pl-file" style="margin:0">파일 선택</label><input type="file" id="pl-file" accept=".txt,.csv,.tsv,.xml,text/plain,text/xml" style="display:none">
   </div>
+  <div id="pl-picker" style="display:none;margin:8px 0"><input class="search" id="pl-picker-q" placeholder="플레이리스트 검색" style="width:100%;margin-bottom:8px"><div id="pl-picker-list" class="plp-list"></div><button type="button" class="btn small" id="pl-picker-go" style="margin-top:8px">선택한 플레이리스트 불러오기</button></div>
   <label style="display:block;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-lookup" checked> 커버·앨범·연도·장르·미리듣기 자동 채우기 (미리듣기 없는 곡은 제외)</label>
   <label style="display:none;font-size:13px;margin:6px 0"><input type="checkbox" id="pl-sound"> 사운드 태그도 자동 채우기 (더 오래 걸려요)</label>
   <div class="api-status" id="pl-status"></div>
@@ -1444,22 +1441,71 @@ async function plSound(artist,title){
 }
 let plCancel=false,plBusy=false;
 const plRefreshCount=()=>{if(plBusy)return;const n=parsePlaylist($('#pl-text').value,$('#pl-format').value).length;$('#pl-status').textContent=$('#pl-text').value.trim()?`${n}곡을 인식했어요.`:''};
-$('#import-pl').onclick=()=>{if(!plBusy){$('#pl-text').value='';$('#pl-status').textContent=''}openModal('pl-modal')};
+$('#import-pl').onclick=()=>{if(!plBusy){$('#pl-text').value='';$('#pl-status').textContent='';plPickerReset()}openModal('pl-modal')};
 $('#pl-text').addEventListener('input',plRefreshCount);$('#pl-format').addEventListener('change',plRefreshCount);
 $('#pl-file').addEventListener('change',e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
-  if(f.size>5e6){toast('파일이 너무 커요 (5MB 초과).');return}
+  if(f.size>(/\.xml$/i.test(f.name)?80e6:5e6)){toast(/\.xml$/i.test(f.name)?'파일이 너무 커요 (80MB 초과).':'파일이 너무 커요 (5MB 초과).');return}
   const r=new FileReader();
   r.onload=()=>{
     const b=new Uint8Array(r.result);let txt;
     if(b[0]===0xFF&&b[1]===0xFE)txt=new TextDecoder('utf-16le').decode(b);
     else if(b[0]===0xFE&&b[1]===0xFF)txt=new TextDecoder('utf-16be').decode(b);
     else{try{txt=new TextDecoder('utf-8',{fatal:true}).decode(b)}catch{txt=new TextDecoder('euc-kr').decode(b)}}
-    $('#pl-text').value=txt;plRefreshCount();
+    plPickerReset();if(plTryLibrary(txt))return;$('#pl-text').value=txt;plRefreshCount();
   };
   r.onerror=()=>toast('파일을 읽지 못했어요.');
   r.readAsArrayBuffer(f);
 });
+// 애플 뮤직 '라이브러리 내보내기(.xml)' 파일이면 플레이리스트 목록을 보여주고, 고른 것만 불러와요
+let plLib=null;
+function plistVal(el){
+  switch(el.tagName){
+    case 'dict':{const o={},ch=[...el.children];for(let i=0;i+1<ch.length;i+=2)o[ch[i].textContent]=plistVal(ch[i+1]);return o}
+    case 'array':return [...el.children].map(plistVal);
+    case 'integer':case 'real':return +el.textContent;
+    case 'true':return true;case 'false':return false;
+    default:return el.textContent;
+  }
+}
+function plPickerReset(){plLib=null;const p=document.getElementById('pl-picker');if(p)p.style.display='none'}
+function plTryLibrary(txt){
+  if(!/<plist[\s>]/.test(txt.slice(0,3000))||txt.indexOf('<key>Playlists</key>')<0)return false;
+  let root;try{
+    const doc=new DOMParser().parseFromString(txt,'application/xml');
+    if(doc.querySelector('parsererror'))throw 0;
+    root=plistVal(doc.documentElement.querySelector(':scope > dict'));
+  }catch(e){toast('라이브러리 파일을 읽지 못했어요.');return true}
+  const tracks=root.Tracks||{},bad=t=>!t||t.Podcast||t.Movie||t['TV Show']||t['Has Video'];
+  const lists=(root.Playlists||[]).filter(p=>p&&!p.Folder&&!p.Master&&!p['Distinguished Kind']&&Array.isArray(p['Playlist Items'])&&p['Playlist Items'].length)
+    .map(p=>({name:p.Name||'이름 없음',items:p['Playlist Items'].map(x=>tracks[String(x['Track ID'])]).filter(t=>!bad(t)&&t.Name&&t.Artist)}))
+    .filter(p=>p.items.length);
+  if(!lists.length){toast('플레이리스트를 찾지 못했어요. 곡만 들어 있는 라이브러리 파일이에요.');return true}
+  plLib=lists;
+  $('#pl-text').value='';$('#pl-picker-q').value='';
+  $('#pl-status').textContent='가져올 플레이리스트를 골라 주세요.';
+  document.getElementById('pl-picker').style.display='';plPickerDraw();
+  return true;
+}
+function plPickerDraw(){
+  const q=$('#pl-picker-q').value.trim().toLowerCase(),box=$('#pl-picker-list');
+  const keep=new Set([...box.querySelectorAll('input:checked')].map(x=>x.value));
+  box.innerHTML=plLib.map((p,i)=>({p,i})).filter(({p,i})=>!q||p.name.toLowerCase().includes(q)||keep.has(String(i)))
+    .map(({p,i})=>`<label class="plp-row"><input type="checkbox" value="${i}"${keep.has(String(i))?' checked':''}><span>${esc(p.name)}</span><em>${p.items.length}곡</em></label>`).join('')||'<div class="taste-text" style="font-size:13px">검색 결과가 없어요.</div>';
+}
+function plPickerApply(){
+  const ids=[...document.querySelectorAll('#pl-picker-list input:checked')].map(x=>+x.value);
+  if(!ids.length){toast('플레이리스트를 먼저 골라 주세요.');return}
+  const seen=new Set(),rows=['Name\tArtist\tAlbum\tGenre\tYear'];
+  ids.forEach(i=>plLib[i].items.forEach(t=>{
+    const k=(t.Name+'|'+t.Artist).toLowerCase();if(seen.has(k))return;seen.add(k);
+    const f=v=>String(v==null?'':v).replace(/[\t\r\n]+/g,' ');
+    rows.push([t.Name,t.Artist,t.Album,t.Genre,t.Year].map(f).join('\t'));
+  }));
+  $('#pl-text').value=rows.join('\n');plRefreshCount();
+}
+$('#pl-picker-q').addEventListener('input',()=>{if(plLib)plPickerDraw()});
+$('#pl-picker-go').onclick=plPickerApply;
 $('#pl-cancel').onclick=()=>{plCancel=true};
 $('#pl-run').onclick=async()=>{
   if(plBusy)return;
@@ -1505,7 +1551,7 @@ $('#pl-run').onclick=async()=>{
   songs=[...fresh,...songs];albums=[...newAlbums,...albums];
   save();render();
   plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';
-  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡은 '제외' 탭으로`:''}${plCancel?' · 중단됨':''}`;
+  const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡은 설정의 '제외된 곡'으로`:''}${plCancel?' · 중단됨':''}`;
   st.textContent=msg;toast(msg);
 };
 // ===== 제외된 곡 =====
@@ -1513,8 +1559,8 @@ function renderSkipped(){
   const have=new Set(songs.map(skey)),n0=skipped.length;
   skipped=skipped.filter(x=>!have.has(skey(x)));
   if(skipped.length!==n0)save();
-  document.querySelector('[data-page="skipped"]').textContent='제외'+(skipped.length?' '+skipped.length:'');
   $('#skipped-count').textContent=skipped.length?`${skipped.length}곡`:'';
+  $('#skipped-all').style.display=$('#skipped-clear').style.display=skipped.length?'':'none';
   $('#skipped-list').innerHTML=skipped.map(x=>`<div class="song-row"><div class="mini-cover">${cover(x.cover)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}${x.album?' · '+esc(x.album):''}</span></div>${x.genre?`<span class="song-tag">${esc(x.genre)}</span>`:''}<div class="row-actions"><button class="btn secondary small" onclick="addSkipped('${x.id}')">추가</button><button class="icon-btn" title="검색해서 추가" aria-label="검색해서 추가" onclick="searchSkipped('${x.id}')">⌕</button><button class="icon-btn" title="목록에서 삭제" aria-label="목록에서 삭제" onclick="removeSkipped('${x.id}')">×</button></div></div>`).join('')||'<div class="empty"><b>제외된 곡이 없어요</b>미리듣기가 없어 빠진 곡이 여기에 모여요.</div>';
 }
 function skippedToSong(x,t){
@@ -1525,6 +1571,7 @@ function skippedToSong(x,t){
 function addSkipped(id){const i=skipped.findIndex(x=>x.id===id);if(i<0)return;const x=skipped[i];skipped.splice(i,1);skippedToSong(x,Date.now());save();render();toast('미리듣기 없이 추가했어요.')}
 function searchSkipped(id){const x=skipped.find(y=>y.id===id);if(x)addRecommended({title:x.title,artist:x.artist})}
 function removeSkipped(id){const i=skipped.findIndex(x=>x.id===id);if(i<0)return;const x=skipped[i];skipped.splice(i,1);save();render();undoToast('제외 목록에서 삭제했어요.',()=>{skipped.splice(Math.min(i,skipped.length),0,x);save();render()})}
+$('#skipped-toggle').onclick=()=>{const body=$('#skipped-body'),open=body.style.display==='none';body.style.display=open?'':'none';$('#skipped-toggle').textContent=open?'접기':'펼치기';$('#skipped-toggle').setAttribute('aria-expanded',open)};
 $('#skipped-all').onclick=()=>{if(!skipped.length){toast('추가할 곡이 없어요.');return}if(!confirm(`제외된 ${skipped.length}곡을 미리듣기 없이 모두 추가할까요?`))return;const n=skipped.length,t=Date.now();skipped.forEach((x,i)=>skippedToSong(x,t-i));skipped=[];save();render();toast(`${n}곡을 추가했어요.`)};
 $('#skipped-clear').onclick=()=>{if(!skipped.length)return;const b=skipped.slice();if(!confirm(`제외 목록 ${b.length}곡을 모두 비울까요?`))return;skipped=[];save();render();undoToast('제외 목록을 비웠어요.',()=>{skipped=b;save();render()})};
 // ===== 곡 직접 골라서 추천 =====
@@ -2379,7 +2426,7 @@ show(null);
 </script>
 <style>
 #cf-yes:focus,#cf-yes:focus-visible,#cf-no:focus,#cf-no:focus-visible{outline:none!important;box-shadow:none!important}
-.nav [data-page="artists"],.nav [data-page="skipped"]{display:none}
+.nav [data-page="artists"]{display:none}
 .ana-bars{display:grid;gap:7px;margin-top:14px}
 .ana-bars div{display:grid;grid-template-columns:52px 1fr 28px;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
 .ana-bars i{height:6px;border-radius:999px;background:var(--soft);overflow:hidden;display:block}
@@ -3211,6 +3258,8 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 .ha-item.on .ha-cv::after{content:"✓";position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;background:#111;color:#fff;display:grid;place-items:center;font-size:12px}
 #hidden-albums-modal .modal{width:min(560px,100%)}
 @media(max-width:700px){.ha-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.plp-list{max-height:210px;overflow:auto;border:1px solid var(--line,#e5e5e5);border-radius:10px;padding:4px 10px}
+.plp-row{display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;cursor:pointer}.plp-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plp-row em{font-style:normal;font-size:12px;opacity:.55}.plp-row input{accent-color:#111}
 </style>
 </body>
 </html>
