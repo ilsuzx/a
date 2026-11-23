@@ -383,18 +383,23 @@ const albT=t=>albRaw(String(t||'').toLowerCase()
 const albA=a=>albRaw(String(a||'').toLowerCase().split(/\s*(?:,|&|\/|;|\bfeat\.?\b|\bft\.?\b|\bx\b|\band\b|와|과)\s*/)[0]);
 const albC=u=>{u=String(u||'').split('?')[0];if(!u)return '';return u.replace(/\/[^\/]*\d+x\d+[^\/]*$/,'')};
 let dupSkip=new Set();
+// 아티스트 표기가 한글/영문(일본어·중국어 포함)처럼 문자 체계가 다르면 같은 사람인지 글자로는 비교할 수 없어요
+const albScript=a=>/[가-힣ㄱ-ㅎ]/.test(a)?'ko':/[ぁ-んァ-ヶ]/.test(a)?'ja':/[一-龥]/.test(a)?'zh':'lat';
 function dedupeAlbums(){
-  const byT=new Map(),byC=new Map(),out=[];let merged=0;
+  const byT=new Map(),byC=new Map(),byTY=new Map(),out=[];let merged=0;
   for(const a of albums){
     if(dupSkip.has(a.id)){out.push(a);continue}
     const ak=albA(a.artist),tk=albT(a.title)+'|'+ak,ck=albC(a.cover)?albC(a.cover)+'|'+ak:'';
-    const g=(tk.length>1&&byT.get(tk))||(ck&&byC.get(ck))||null;
+    const ty=albT(a.title);
+    let g=(tk.length>1&&byT.get(tk))||(ck&&byC.get(ck))||null;
+    // 앨범명이 같고 발매연도도 같은데 아티스트 표기만 한글↔영문처럼 다른 경우(자동 가져오기 vs 검색 등록)
+    if(!g&&ty.length>=2){for(const c of byTY.get(ty)||[]){if(albScript(c.artist)!==albScript(a.artist)&&(!c.year||!a.year||String(c.year).slice(0,4)===String(a.year).slice(0,4))){g=c;break}}}
     if(g){
       ['year','genre','cover','note','intro','srcName','srcUrl','info','dzId'].forEach(k=>{if(!g[k]&&a[k])g[k]=a[k]});
       if(albRaw(g.title)!==albT(g.title).replace(/\|.*/,'')&&albRaw(a.title)===albRaw(albT(a.title)))g.title=a.title;
       merged++;
       byT.set(tk,g);if(ck)byC.set(ck,g);
-    }else{out.push(a);byT.set(tk,a);if(ck)byC.set(ck,a)}
+    }else{out.push(a);byT.set(tk,a);if(ck)byC.set(ck,a);if(ty.length>=2){if(!byTY.has(ty))byTY.set(ty,[]);byTY.get(ty).push(a)}}
   }
   return merged?{list:out,merged}:null;
 }
