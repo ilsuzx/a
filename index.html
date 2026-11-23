@@ -379,7 +379,7 @@ const normSong=x=>({id:str(x.id)||uid(),title:str(x.title),artist:str(x.artist),
 const normAlbum=x=>({id:str(x.id)||uid(),title:str(x.title),artist:str(x.artist),year:str(x.year),genre:str(x.genre),cover:str(x.cover),note:str(x.note),intro:str(x.intro),info:str(x.info),srcName:str(x.srcName),srcUrl:str(x.srcUrl),dzId:str(x.dzId),created:Number(x.created)||Date.now()});
 const skey=x=>(x.title+'|'+x.artist).toLowerCase();
 function exportData(){
-  const data={app:'aftertone',version:2,exported:new Date().toISOString(),songs,albums,tags:manualTags,skipped,blocked,profile,daily};
+  const data={app:'aftertone',version:2,exported:new Date().toISOString(),songs,albums,tags:manualTags,skipped,blocked,userpl:(window.__plExport?window.__plExport():[]),profile,daily};
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download='aftertone-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),1500);try{localStorage.setItem('aftertone_lastexport',Date.now())}catch{}toast(`곡 ${songs.length} · 앨범 ${albums.length}개를 내보냈어요.`)}
@@ -391,7 +391,8 @@ function importData(text){
   const T=Array.isArray(d.tags)?d.tags.map(str).filter(Boolean):[],D=normDaily(d.daily);
   if(importMode==='replace'){
     if(!confirm(`현재 데이터를 지우고 백업 파일(곡 ${S.length}, 앨범 ${A.length})로 덮어쓸까요?`))return;
-    songs=S;albums=A;manualTags=T;blocked=Array.isArray(d.blocked)?d.blocked.filter(x=>x&&x.title&&x.artist).map(x=>({id:String(x.id||uid()),title:String(x.title),artist:String(x.artist),cover:String(x.cover||''),created:Number(x.created)||Date.now()})):[];skipped=Array.isArray(d.skipped)?d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum):[];if(typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
+    if(window.__plImport)window.__plImport(d.userpl||[],true);
+  songs=S;albums=A;manualTags=T;blocked=Array.isArray(d.blocked)?d.blocked.filter(x=>x&&x.title&&x.artist).map(x=>({id:String(x.id||uid()),title:String(x.title),artist:String(x.artist),cover:String(x.cover||''),created:Number(x.created)||Date.now()})):[];skipped=Array.isArray(d.skipped)?d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum):[];if(typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
     if(Object.keys(D).length)daily=D;
     save();render();toast(`복원 완료: 곡 ${S.length} · 앨범 ${A.length}개`);return}
   const sk=new Set(songs.map(skey)),ak=new Set(albums.map(skey)),ids=new Set([...songs,...albums].map(x=>x.id));
@@ -400,6 +401,7 @@ function importData(text){
   A.forEach(x=>{if(ak.has(skey(x)))return;if(ids.has(x.id))x.id=uid();ids.add(x.id);ak.add(skey(x));albums.push(x);na++});
   songs.sort((a,b)=>b.created-a.created);albums.sort((a,b)=>b.created-a.created);
   manualTags=[...new Set([...manualTags,...T])];
+  if(window.__plImport&&d.userpl)window.__plImport(d.userpl,false);
   if(Array.isArray(d.blocked)){const bk2=new Set(blocked.map(skey));d.blocked.filter(x=>x&&x.title&&x.artist).forEach(x=>{if(!bk2.has(skey(x))){bk2.add(skey(x));blocked.push({id:String(x.id||uid()),title:String(x.title),artist:String(x.artist),cover:String(x.cover||''),created:Number(x.created)||Date.now()})}})}
   if(Array.isArray(d.skipped)){const sk2=new Set(skipped.map(skey));d.skipped.filter(x=>x&&x.title&&x.artist).map(normAlbum).forEach(x=>{if(!sk2.has(skey(x))){sk2.add(skey(x));skipped.push(x)}})}
   if(profile===DEFAULT_PROFILE&&typeof d.profile==='string'&&d.profile.trim())profile=d.profile;
@@ -2243,7 +2245,197 @@ show(null);
       if(songs.length<3){made=null;$('#pl-make').textContent='플리 만들기'}
       draw();
     }
+    drawU();
   };
+  // ===== 플리 월드컵: 대표곡을 고르면 비슷한 곡 2곡씩 보여주고, 더 좋은 곡을 플리에 담아요 =====
+  const UK='aftertone_userpl_v1';
+  let userPl=(()=>{try{const a=JSON.parse(localStorage.getItem(UK)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}})();
+  const saveU=()=>{try{localStorage.setItem(UK,JSON.stringify(userPl))}catch(e){}};
+  const iid=it=>'ext:'+recNorm(it.title+it.artist);
+  const regItem=it=>{if(it&&it.preview)extMap.set(iid(it),{...it,id:iid(it),ext:true})};
+  const cleanItem=x=>({title:String(x.title||''),artist:String(x.artist||''),cover:String(x.cover||''),preview:String(x.preview||''),seed:!!x.seed});
+  userPl.forEach(p=>(p.items||[]).forEach(regItem));
+  window.__plExport=()=>userPl;
+  window.__plImport=(arr,overwrite)=>{
+    const ok=(Array.isArray(arr)?arr:[]).filter(p=>p&&p.id&&Array.isArray(p.items)&&p.items.length).map(p=>({id:String(p.id),name:String(p.name||'플레이리스트'),seed:p.seed||null,done:!!p.done,created:Number(p.created)||Date.now(),items:p.items.filter(x=>x&&x.title&&x.artist).map(cleanItem)}));
+    if(overwrite)userPl=ok;else{const ids=new Set(userPl.map(p=>p.id));ok.forEach(p=>{if(!ids.has(p.id))userPl.push(p)})}
+    userPl.forEach(p=>p.items.forEach(regItem));saveU();drawU();
+  };
+
+  const uhost=document.createElement('div');uhost.className='block';uhost.id='upl-block';
+  uhost.innerHTML='<div class="head" style="margin-bottom:8px"><h2>플리 월드컵</h2><div style="display:flex;gap:8px"><button class="btn small" id="upl-new">새 플리 만들기</button></div></div><p class="taste-text" style="margin:0 0 12px">대표곡을 고르면 비슷한 곡이 2곡씩 나와요. 미리 들어 보고 더 좋은 곡을 고르면 플리에 담겨요.</p><div id="upl-grid" class="pl-grid"></div>';
+  host.parentNode.insertBefore(uhost,host);
+
+  const wc=document.createElement('div');wc.className='modal-backdrop';wc.id='wc-modal';
+  wc.innerHTML='<div class="modal wc-modal" role="dialog" aria-modal="true"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px"><h2 id="wc-title" style="margin:0;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">플리 월드컵</h2><button class="icon-btn" data-wc="close" aria-label="닫기">✕</button></div><div id="wc-body"></div></div>';
+  document.body.append(wc);
+
+  let W=null; // 진행 중인 월드컵 상태
+  const memo=new Map();
+  const getTags=async c=>{const k=skey(c);let t=tagMem.get(k);if(!t){try{t=await fullTags(c.artist,c.title)}catch(e){t=new Map()}tagMem.set(k,t||new Map())}return tagMem.get(k)};
+  const idfVec=t=>{const v=new Map();t.forEach((w,name)=>{const k=norm(name);v.set(k,(v.get(k)||0)+w*Math.log(1+W.N/(W.df[k]||0.5)))});return unit(v)};
+  const vecOf=c=>{const t=tagMem.get(skey(c));return t&&t.size?idfVec(t):null};
+  function addPool(list,w){
+    recFilterHook(list||[]).forEach(c=>{const k=skey(c);if(!W||W.shown.has(k))return;
+      const e=W.pool.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0};e.sum+=(c.match||0.3)*w;e.hits++;W.pool.set(k,e)});
+  }
+  function rank(){
+    const arr=[...W.pool.entries()].filter(([k])=>!W.shown.has(k)).map(([k,c])=>({k,c,score:c.sum*(1+0.6*(c.hits-1))}));
+    const mx=Math.max(1e-6,...arr.map(x=>x.score)),tv=unit(W.tv);
+    arr.forEach(x=>{const v=vecOf(x.c),cs=v?Math.max(0,cos(v,tv)):null;x.final=(cs==null?x.score/mx:0.5*x.score/mx+0.5*cs)+Math.random()*0.04});
+    return arr.sort((a,b)=>b.final-a.final);
+  }
+  const enrichMemo=x=>{
+    if(memo.has(x.k))return Promise.resolve(memo.get(x.k));
+    return enrich(x.c).then(it=>{memo.set(x.k,it);if(!it&&W)W.shown.add(x.k);return it});
+  };
+  async function pickPair(){
+    const rk=rank(),ready=[];
+    for(let i=0;i<rk.length&&i<16&&ready.length<3;i+=4){
+      const res=await Promise.all(rk.slice(i,i+4).map(async x=>({x,it:await enrichMemo(x)})));
+      res.forEach(r=>{if(r.it)ready.push(r)});
+    }
+    if(ready.length<2)return null;
+    const a=ready[0],b=ready.slice(1).find(r=>recNorm(r.it.artist)!==recNorm(a.it.artist))||ready[1];
+    const pair=Math.random()<0.5?[a,b]:[b,a];
+    return pair.map(r=>r.it);
+  }
+  function prefetch(){ // 고르는 동안 다음 후보의 태그·미리듣기를 미리 불러와요
+    const tok=W.tok,rk=rank().slice(0,8);
+    pool(rk,3,async x=>{if(W&&W.tok===tok)await getTags(x.c)});
+    pool(rk.slice(0,4),2,async x=>{if(W&&W.tok===tok)await enrichMemo(x)});
+  }
+  const wb=()=>$('#wc-body');
+  function wcCard(c,i){
+    const on=playingId===c.id&&!player.paused;
+    return `<div class="wc-card"><div class="wc-cover">${cover(c.cover)}</div><strong>${esc(c.title)}</strong><span>${esc(c.artist)}</span><div class="wc-btns"><button class="btn ghost small" data-wcplay="${i}">${on?'❚❚ 멈춤':'▶ 듣기'}</button><button class="btn small" data-wc="pick${i}">이 곡 선택</button></div></div>`;
+  }
+  function wcView(){
+    if(!W)return;const pl=W.pl;$('#wc-title').textContent=pl.name;
+    const chips=pl.items.map((s,i)=>`<em class="${s.seed?'seed':''}">${esc(s.title)}</em>`).join('');
+    if(W.view==='seed'){
+      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">플리의 중심이 될 대표곡을 골라 주세요.</p><input id="wc-q" class="search" placeholder="곡명 또는 아티스트 검색" style="width:100%;margin-bottom:8px"><div id="wc-seeds" class="wc-seeds"></div>`;
+      wcSeeds('');return;
+    }
+    if(W.view==='done'){
+      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">${pl.items.length}곡으로 플리가 완성됐어요.</p><div class="pl-list" style="max-height:340px">${pl.items.map((s,j)=>`<div class="pl-row"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span></div>`).join('')}</div><div class="wc-actions"><button class="btn" data-wc="close">닫기</button></div>`;return;
+    }
+    if(W.loading){wb().innerHTML=`<div class="api-status">${esc(W.msg||'비슷한 곡을 찾고 있어요…')}</div><div class="wc-picked">${chips}</div>`;return}
+    wb().innerHTML=`<div class="wc-prog">${pl.items.length}/${TOTAL}곡 · 대표곡 <b>${esc(pl.items[0].title)}</b></div>
+      <div class="wc-grid">${W.cur.map(wcCard).join('')}</div>
+      <div class="wc-actions"><button class="btn ghost" data-wc="both">둘 다 좋아</button><button class="btn ghost" data-wc="none">둘 다 별로</button></div>
+      <div class="wc-picked">${chips}</div>
+      <div class="wc-foot">${pl.items.length>=2?'<button class="btn ghost small" data-wc="stop">여기서 마치기</button>':''}</div>`;
+  }
+  function wcSeeds(q){
+    const box=$('#wc-seeds');if(!box)return;
+    const t=q.trim().toLowerCase();
+    const l=songs.filter(s=>!t||(s.title+' '+s.artist).toLowerCase().includes(t)).sort((a,b)=>(b.fav?1:0)-(a.fav?1:0)).slice(0,40);
+    box.innerHTML=l.map(s=>`<button type="button" class="wc-seed" data-wcseed="${esc(s.id)}"><span class="mini-cover">${cover(s.cover)}</span><span class="pl-t">${esc(s.title)}<small>${esc(s.artist)}</small></span></button>`).join('')||'<div class="empty">검색 결과가 없어요.</div>';
+  }
+  async function nextRound(){
+    const tok=W.tok;W.loading=true;W.msg='다음 비교곡을 찾고 있어요…';wcView();
+    if(W.pool.size-W.shown.size<2){ // 후보가 모자라면 지금까지 담은 곡의 유사곡으로 한 번 더 넓혀요
+      for(const s of W.pl.items.slice(-3)){try{addPool(await getSimilar(s.artist,s.title,40),0.6)}catch(e){}}
+    }
+    const pair=await pickPair();
+    if(!W||W.tok!==tok)return;
+    if(!pair){W.loading=false;toast('더 비교할 비슷한 곡이 없어요.');return finishWc()}
+    W.cur=pair;W.loading=false;wcView();
+    pair.forEach(c=>getTags(c));prefetch();
+  }
+  function finishWc(){
+    W.pl.done=true;saveU();W.view='done';wcView();drawU();stopPlayer();
+  }
+  async function startWc(pl,isNew){
+    const seed=pl.items[0];
+    W={pl,pool:new Map(),shown:new Set(pl.items.map(skey)),tv:new Map(),cur:[],loading:true,view:'match',msg:'대표곡과 비슷한 곡을 찾고 있어요…',tok:Date.now(),df:{},N:Math.max(1,songs.length)};
+    const tok=W.tok;
+    songs.map(rawVec).forEach(o=>o.v.forEach((_,k)=>{W.df[k]=(W.df[k]||0)+1}));
+    openModal('wc-modal');wcView();
+    let sm=new Map();try{sm=new Map(await fullTags(seed.artist,seed.title))}catch(e){}
+    rawVec({title:seed.title,artist:seed.artist,sound:(pl.seedInfo&&pl.seedInfo.sound)||'',genre:(pl.seedInfo&&pl.seedInfo.genre)||'',year:''}).v.forEach((w,k)=>sm.set(k,(sm.get(k)||0)+w));
+    if(!W||W.tok!==tok)return;
+    W.tv=sm.size?idfVec(sm):new Map();
+    try{addPool(await getSimilar(seed.artist,seed.title,50),1)}catch(e){}
+    for(const s of pl.items.slice(1,4)){try{addPool(await getSimilar(s.artist,s.title,30),0.6)}catch(e){}}
+    if(!W||W.tok!==tok)return;
+    if(!W.pool.size){closeWc();toast('이 곡과 비슷한 곡을 찾지 못했어요. 다른 대표곡으로 시도해 보세요.');return}
+    nextRound();
+  }
+  function closeWc(){if(W)W.tok=0;stopPlayer();queue=[];closeModals();W=null;drawU()}
+  async function choose(mode){
+    if(!W||W.loading||W.cur.length<2)return;
+    const [a,b]=W.cur,pl=W.pl;let keep=[],drop=[];
+    if(mode==='a'||mode==='b'){keep=[mode==='a'?a:b];drop=[mode==='a'?b:a]}else if(mode==='both')keep=[a,b];else drop=[a,b];
+    stopPlayer();W.loading=true;W.msg='취향을 반영하고 있어요…';wcView();
+    await Promise.all([...keep,...drop].map(getTags));
+    keep.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)+0.7*x));
+      if(pl.items.length<TOTAL){const it=cleanItem(c);pl.items.push(it);regItem(it)}W.shown.add(skey(c))});
+    drop.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)-0.3*x));W.shown.add(skey(c))});
+    keep.forEach(c=>{getSimilar(c.artist,c.title,30).then(l=>addPool(l,0.6)).catch(()=>{})});
+    saveU();drawU();
+    if(pl.items.length>=TOTAL)finishWc();else nextRound();
+  }
+  wc.addEventListener('click',e=>{
+    const sd=e.target.closest('[data-wcseed]');
+    if(sd&&W){const s=songs.find(x=>x.id===sd.dataset.wcseed);if(!s)return;
+      const it=cleanItem({...s,seed:true});
+      const pl={id:'u'+Date.now().toString(36),name:s.title+' 플리',seed:null,seedInfo:{sound:s.sound||'',genre:s.genre||''},done:false,created:Date.now(),items:[it]};
+      regItem(it);userPl.unshift(pl);saveU();drawU();startWc(pl,true);return}
+    const pb=e.target.closest('[data-wcplay]');
+    if(pb&&W){const c=W.cur[Number(pb.dataset.wcplay)];if(c){queue=[];playSong(c.id)}return}
+    const b=e.target.closest('[data-wc]');
+    if(b){const m=b.dataset.wc;
+      if(m==='close')closeWc();else if(m==='stop'){if(W&&W.pl.items.length>=2)finishWc()}
+      else if(m==='pick0')choose('a');else if(m==='pick1')choose('b');else choose(m);return}
+    if(e.target===wc)closeWc();
+  });
+  wc.addEventListener('input',e=>{if(e.target.id==='wc-q')wcSeeds(e.target.value)});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&W)closeWc()});
+  $('#upl-new').onclick=()=>{
+    if(!songs.length){toast('대표곡으로 쓸 노래를 먼저 추가해 주세요.');return}
+    W={pl:{name:'새 플리',items:[]},view:'seed',pool:new Map(),shown:new Set(),tv:new Map(),cur:[],tok:Date.now(),df:{},N:1};
+    openModal('wc-modal');wcView();
+  };
+
+  const uOpen=new Set();
+  function drawU(){
+    const grid=$('#upl-grid');if(!grid)return;
+    if(!userPl.length){grid.innerHTML='<div class="empty"><b>만든 플리가 없어요</b>새 플리 만들기로 대표곡을 골라 보세요.</div>';return}
+    grid.innerHTML=userPl.map(p=>{
+      const play=p.items.filter(s=>s.preview).length,open=uOpen.has(p.id);
+      const playing=queue.includes(playingId)&&!player.paused&&p.items.some(x=>iid(x)===playingId);
+      return `<div class="pl-card" data-u="${esc(p.id)}">
+        <div class="pl-top">${mosaic(p.items)}<div class="pl-info"><strong>${esc(p.name)}</strong><span>${p.items.length}/${TOTAL}곡 · 대표곡 ${esc(p.items[0].title)}</span></div></div>
+        <div class="pl-actions"><button class="btn small" data-ua="play" ${play?'':'disabled'}>${playing?'■ 정지':'▶ 재생'}</button>${p.items.length<TOTAL?'<button class="btn ghost small" data-ua="more">이어서 담기</button>':''}<button class="btn ghost small" data-ua="toggle">${open?'접기':'곡 보기'}</button><button class="btn ghost small" data-ua="copy">복사</button><button class="btn ghost small" data-ua="rename">이름</button><button class="btn ghost small" data-ua="del">삭제</button></div>
+        ${open?`<div class="pl-list">${p.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.seed&&!recRegHook(s)?`<button class="icon-btn" data-uadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">＋</button>`:''}${s.preview?`<button class="icon-btn" data-usong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?'❚❚':'▶'}</button>`:''}</div>`).join('')}</div>`:''}
+      </div>`}).join('');
+  }
+  $('#upl-grid').addEventListener('click',e=>{
+    const sb=e.target.closest('[data-usong]');if(sb){queue=[];playSong(sb.dataset.usong);return}
+    const card=e.target.closest('.pl-card');if(!card)return;
+    const p=userPl.find(x=>x.id===card.dataset.u);if(!p)return;
+    const ab=e.target.closest('[data-uadd]');if(ab){const it=p.items[Number(ab.dataset.uadd)];if(it)addRecommended(it);return}
+    const b=e.target.closest('[data-ua]');if(!b)return;
+    const m=b.dataset.ua;
+    if(m==='toggle'){uOpen.has(p.id)?uOpen.delete(p.id):uOpen.add(p.id);drawU()}
+    else if(m==='more'){startWc(p,false)}
+    else if(m==='rename'){const n=prompt('플레이리스트 이름',p.name);if(n&&n.trim()){p.name=n.trim().slice(0,40);saveU();drawU()}}
+    else if(m==='del'){if(!confirm(`'${p.name}' 플레이리스트를 삭제할까요?`))return;const i=userPl.indexOf(p);userPl.splice(i,1);saveU();drawU();undoToast('플레이리스트를 삭제했어요.',()=>{userPl.splice(Math.min(i,userPl.length),0,p);saveU();drawU()})}
+    else if(m==='copy'){
+      const text=p.name+'\n'+p.items.map((s,j)=>`${j+1}. ${s.title} - ${s.artist}`).join('\n');
+      const ok=()=>toast('플레이리스트 목록을 복사했어요.');
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,()=>toast('복사하지 못했어요.'));
+      else{const t=document.createElement('textarea');t.value=text;document.body.append(t);t.select();try{document.execCommand('copy');ok()}catch(_){toast('복사하지 못했어요.')}t.remove()}
+    }else if(m==='play'){
+      const q=p.items.filter(s=>s.preview).map(iid);if(!q.length)return;
+      if(queue.includes(playingId)&&!player.paused&&q.includes(playingId)){stopPlayer();queue=[];drawU();return}
+      queue=q;if(playingId===q[0])stopPlayer();playSong(q[0]);
+    }
+  });
+  drawU();
+  ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{drawU();if(W&&W.view==='match'&&!W.loading)wcView()}));
   document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{queue=[]}));
 })();
 </script>
@@ -2267,6 +2459,23 @@ show(null);
 .pl-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl-t small{color:var(--muted);margin-left:6px;font-size:12px}
 .pl-ext{display:inline-block;font-size:10px;font-weight:600;color:var(--muted);background:var(--soft);border-radius:999px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+.wc-modal{max-width:560px;width:calc(100% - 24px)}
+.wc-prog{font-size:13px;color:var(--muted);margin-bottom:10px}.wc-prog b{color:var(--fg)}
+.wc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wc-card{border:1px solid var(--line);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:4px;min-width:0;background:#fff}
+.wc-cover{aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--soft);display:flex;align-items:center;justify-content:center}
+.wc-cover img{width:100%;height:100%;object-fit:cover}
+.wc-card strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:6px}
+.wc-card span{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wc-btns{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.wc-actions{display:flex;gap:8px;justify-content:center;margin:14px 0 6px;flex-wrap:wrap}
+.wc-picked{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
+.wc-picked em{font-style:normal;font-size:11px;color:var(--muted);background:var(--soft);padding:2px 8px;border-radius:999px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wc-picked em.seed{color:var(--fg);font-weight:600}
+.wc-foot{text-align:right;margin-top:8px}
+.wc-seeds{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.wc-seed{display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;border-radius:10px;padding:6px;cursor:pointer;min-width:0}
+.wc-seed:hover{background:var(--soft)}
 .pl-actions .btn[disabled]{opacity:.4;pointer-events:none}
 @media(max-width:600px){.pl-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
