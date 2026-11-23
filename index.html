@@ -180,7 +180,6 @@ h1{font-size:30px}
   <div class="head"><div><h1>취향</h1><p class="taste-text" id="taste-copy"></p></div></div>
   <div class="block"><div class="glance" id="glance"></div></div>
   <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
-  <div class="block"><h2>장르 비율</h2><div id="genre-donut"></div></div>
   <div class="block"><h2>세부 장르</h2><p class="taste-text" id="sub-note" style="margin:4px 0 14px;font-size:13px"></p><div id="sub-donut"></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
@@ -535,11 +534,6 @@ const SHADES=['#111','#444','#777','#999','#bbb','#d3d3d3','#e6e6e6'];
 function renderCharts(){
   const years={};songs.forEach(s=>{const y=parseInt(s.year);if(y>=1900&&y<=2100)years[y]=(years[y]||0)+1});
   const ys=Object.keys(years).map(Number).sort((a,b)=>a-b).slice(-12),maxY=Math.max(1,...ys.map(y=>years[y]));
-  const g=counts(songs.map(s=>s.genre)),total=g.reduce((a,x)=>a+x[1],0);
-  if(!total)$('#genre-donut').innerHTML='<div class="empty">장르가 입력된 곡이 없어요.</div>';
-  else{let top=g.slice(0,6),rest=g.slice(6).reduce((a,x)=>a+x[1],0);if(rest)top=[...top,['기타',rest]];
-    let acc=0;const stops=top.map(([n,c],i)=>{const a=acc/total*100;acc+=c;return `${SHADES[i]} ${a}% ${acc/total*100}%`});
-    $('#genre-donut').innerHTML=`<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops.join(',')})"></div><div class="legend">${top.map(([n,c],i)=>`<div><i style="background:${SHADES[i]}"></i>${esc(n)}<em>${Math.round(c/total*100)}%</em></div>`).join('')}</div></div>`}
   const topDec=Object.entries(Object.keys(years).reduce((a,y)=>{const d=Math.floor(y/10)*10+'s';a[d]=(a[d]||0)+years[y];return a},{})).sort((a,b)=>b[1]-a[1])[0];
   try{renderSubGenres()}catch(e){}
   $('#glance').innerHTML=[['노래',songs.length],['아티스트',new Set(songs.map(s=>s.artist.toLowerCase())).size],['앨범',albums.length],['가장 많은 연대',topDec?topDec[0].replace('s','년대'):'–']].map(([l,v])=>`<div><small>${l}</small><b>${esc(v)}</b></div>`).join('');
@@ -599,7 +593,7 @@ function subPaint(){
   let acc=0;
   const stops=top.map((x,i)=>{const a=acc/r.used*100;acc+=x.v;return `${SHADES[i]} ${a}% ${acc/r.used*100}%`});
   box.innerHTML=`<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops.join(',')})"></div><div class="legend">${top.map((x,i)=>`<div data-v="${esc(x.k)}" data-l="${esc(x.l)}"><i style="background:${SHADES[i]}"></i>${esc(x.l)}<em>${Math.round(x.v/r.used*100)}%</em></div>`).join('')}</div></div>`;
-  if(note&&!subBusy)note.textContent=`Last.fm 아티스트 태그로 ${r.used}곡을 분석했어요.`+(r.none?` 태그를 찾지 못한 ${r.none}곡은 빠졌어요.`:'')+' 항목을 누르면 해당 곡을 볼 수 있어요.';
+  if(note&&!subBusy)note.textContent='';
 }
 window.__subHas=(s,v)=>{const st=subSongTags.get(s.id);if(!st)return false;if(v==='기타')return [...st].some(k=>!subShownKeys.has(k));return st.has(v)};
 async function subRun(){
