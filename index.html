@@ -758,6 +758,22 @@ function recPage(container){
   const pg=container.querySelector('.rec-pager');
   if(pg){pg.style.display=(o.pageSize&&pages>1)?'flex':'none';pg.querySelector('span').textContent=(container._page+1)+' / '+pages;pg.querySelector('[data-pg="-1"]').disabled=container._page<=0;pg.querySelector('[data-pg="1"]').disabled=container._page>=pages-1}
 }
+// 추천곡과 검색 결과를 맞춰 볼 때: 1) 아티스트가 같으면 인정, 2) 한글↔영문 표기처럼 비교가 안 되면 곡명이 같을 때 인정
+function pickRecPreview(c,results){
+  const ok=results.filter(x=>x&&x.trackName&&x.previewUrl);
+  const b=recNorm(c.artist);
+  const same=ok.find(x=>{const a=recNorm(x.artistName);return a&&b&&(a.includes(b)||b.includes(a))});
+  if(same)return same;
+  const core=s=>recNorm(String(s||'').replace(/\(.*?\)|\[.*?\]|（.*?）/g,'').replace(/\s[-–—]\s.*$/,'').replace(/\b(feat|ft)\.?.*$/i,''))||recNorm(s);
+  const hg=s=>/[가-힣]/.test(s),lt=s=>/[a-z]/.test(s),tc=core(c.title);
+  if(!tc||tc.length<2)return null;
+  return ok.find(x=>{
+    if(core(x.trackName)!==tc)return false;
+    const a=recNorm(x.artistName);
+    if(!a||!b)return true; // 일본어 등 비교할 수 없는 표기
+    return (hg(a)&&!hg(b)&&lt(b))||(hg(b)&&!hg(a)&&lt(a));
+  })||null;
+}
 function enrichRecs(container,list,opt){
   const cap=opt.cap||list.length;
   let shown=0,done=0;
@@ -772,7 +788,7 @@ function enrichRecs(container,list,opt){
       if(shown>=cap)return;
       const data=await new Promise(res=>searchTrack(c.title,c.artist,res));
       if(container._list!==list||!data||data.error)return;
-      const best=(data.results||[]).find(x=>{if(!x.trackName||!x.previewUrl)return false;const a=recNorm(x.artistName),b=recNorm(c.artist);return a&&b&&(a.includes(b)||b.includes(a))});
+      const best=pickRecPreview(c,data.results||[]);
       if(!best||shown>=cap)return;
       if(recRegHook(c)||recRegHook({title:best.trackName,artist:best.artistName}))return; // 표기가 달라 걸러지지 않은, 이미 등록된 곡
       shown++;
@@ -909,7 +925,11 @@ async function candTags(artist,track){
   tags.forEach(x=>{const n=String(x.name||'').toLowerCase().trim();if(SOUND_MAP[n])out.add(SOUND_MAP[n])});
   return [...out];
 }
-const recSeen=new Set(); // 이번 접속 중 이미 보여준 추천곡
+const recSeen=new Set((()=>{try{const a=JSON.parse(localStorage.getItem('aftertone_recseen')||'[]');return Array.isArray(a)?a:[]}catch(e){return []}})()); // 이미 보여준 추천곡 (새로고침해도 유지)
+{const _add=recSeen.add.bind(recSeen),_clr=recSeen.clear.bind(recSeen);let tm;
+  const persist=()=>{clearTimeout(tm);tm=setTimeout(()=>{try{localStorage.setItem('aftertone_recseen',JSON.stringify([...recSeen].slice(-2000)))}catch(e){}},300)};
+  recSeen.add=k=>{_add(k);persist();return recSeen};
+  recSeen.clear=()=>{_clr();persist()};}
 async function recommendSeparate(custom){
   const lib=new Set(songs.map(skey));
   const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
@@ -922,7 +942,7 @@ async function recommendSeparate(custom){
   }));
   const sorted=[...cand.values()].sort((a,b)=>b.score-a.score);
   const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
-  let pool=fresh;if(fresh.length<12){recSeen.clear();pool=sorted}
+  let pool=fresh; // 이미 보여준 곡은 다시 넣지 않아요
   const top=pool.slice(0,24);
   if(!top.length)return [];
   for(let i=0;i<top.length;i+=6){
@@ -977,7 +997,7 @@ async function recommend(custom){
   const topTags=[...feel.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
   // 2) 후보는 '곡 단위 유사곡'에서만 모아요. 여러 곡과 동시에 비슷한 곡일수록 점수가 크게 올라가요
   const cand=new Map();
-  await Promise.all(seeds.map(async sd=>{
+  const collect=ss=>Promise.all(ss.map(async sd=>{
     try{
       (await getSimilar(sd.artist,sd.title)).forEach(c=>{
         const k=skey(c);if(lib.has(k))return;
@@ -986,12 +1006,22 @@ async function recommend(custom){
       });
     }catch(e){}
   }));
+  await collect(seeds);
+  // 아직 안 보여준 새 곡이 모자라면, 쓰지 않은 다른 곡을 시드로 더 찾아봐요 (최대 3번)
+  const usedSeeds=new Set(seeds);
+  for(let r=0;r<3&&!custom;r++){
+    const freshN=recFilterHook([...cand.values()]).filter(c=>!recSeen.has(skey(c))).length;
+    if(freshN>=20)break;
+    const more=wshuffle(songs.filter(s=>!usedSeeds.has(s))).slice(0,10);
+    if(!more.length)break;
+    more.forEach(s=>usedSeeds.add(s));await collect(more);
+  }
   let list=recFilterHook([...cand.values()]);
   list.forEach(c=>{c.score=c.sum*(1+0.6*(c.hits-1))}); // 겹칠수록 가산
   const sorted=list.sort((a,b)=>b.score-a.score);
   const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
-  let pool=fresh;if(fresh.length<12){recSeen.clear();pool=sorted}
-  const top=pool.slice(0,30);
+  let pool=fresh; // 이미 보여준 곡은 다시 넣지 않아요
+  const top=pool.slice(0,45);
   if(!top.length)return [];
   // 3) 후보의 태그가 합친 느낌과 얼마나 가까운지로 한 번 더 걸러서 순서를 정해요
   const noFeel=topTags.length<2;
@@ -1013,7 +1043,7 @@ async function recommend(custom){
   });
   let out=top.sort((a,b)=>(b.final+b.j)-(a.final+a.j));
   const best=out[0].final;
-  if(out.length>8)out=out.filter((c,i)=>i<8||c.final>=best*0.45); // 느낌이 많이 다른 곡은 빼요
+  if(out.length>12)out=out.filter((c,i)=>i<12||c.final>=best*0.3); // 느낌이 많이 다른 곡은 빼요
   out.feel=noFeel?[]:topTags.slice(0,6).map(x=>x[0]);
   return out;
 }
@@ -1028,7 +1058,7 @@ $('#rec-btn').onclick=async()=>{
   box.innerHTML='<div class="api-status">저장한 곡들의 전체 느낌을 합쳐서 비슷한 곡을 찾고 있어요. 10~20초 정도 걸릴 수 있어요…</div>';
   try{
     const list=await recommend();
-    if(!list.length)box.innerHTML='<div class="api-hint">추천 후보를 찾지 못했어요. 곡을 더 저장하거나 잠시 후 다시 시도해 주세요.</div>';
+    if(!list.length)box.innerHTML='<div class="api-hint">새로 추천할 곡을 찾지 못했어요. 이미 보여드린 곡은 다시 나오지 않아요. 곡을 더 저장하거나, \'초기화\'로 추천 기록을 지운 뒤 다시 시도해 주세요.</div>';
     else{renderRecList(box,list,{cap:15,pageSize:5,onShow:c=>recSeen.add(skey(c))});showFeel(box,list)}
   }catch(e){box.innerHTML='<div class="api-hint">추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
   btn.disabled=false;btn.textContent='다시 추천 받기';
@@ -1186,7 +1216,7 @@ $('#pick-go').onclick=async()=>{
   box.scrollIntoView({behavior:'smooth',block:'center'});
   try{
     const list=await recommend(seeds);
-    if(!list.length)box.innerHTML='<div class="api-hint">추천 후보를 찾지 못했어요. 다른 곡을 골라 다시 시도해 주세요.</div>';
+    if(!list.length)box.innerHTML='<div class="api-hint">새로 추천할 곡을 찾지 못했어요. 이미 보여드린 곡은 다시 나오지 않아요. 다른 곡을 고르거나, \'초기화\'로 추천 기록을 지운 뒤 다시 시도해 주세요.</div>';
     else{renderRecList(box,list,{cap:15,pageSize:5,onShow:c=>recSeen.add(skey(c))});showFeel(box,list)}
   }catch(e){box.innerHTML='<div class="api-hint">추천을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
 };
