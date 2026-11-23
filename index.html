@@ -172,7 +172,7 @@ h1{font-size:30px}
 
 <section class="page" id="page-albums">
   <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="album-pick">오늘의 앨범</button><button class="btn secondary" id="album-hidden-btn">숨긴 앨범 (0)</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
-  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도 최신순</option><option value="year-asc">발매연도 오래된 순</option><option value="artist" selected>아티스트순</option><option value="random">랜덤순</option></select><label class="albsz"><span id="album-cols-n"></span><input type="range" id="album-cols" min="2" max="12" step="1" aria-label="한 줄에 보이는 앨범 수"></label></div>
+  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="recent" selected>최근 추가순</option><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도 최신순</option><option value="year-asc">발매연도 오래된 순</option><option value="artist">아티스트순</option><option value="random">랜덤순</option></select><label class="albsz"><span id="album-cols-n"></span><input type="range" id="album-cols" min="2" max="12" step="1" aria-label="한 줄에 보이는 앨범 수"></label></div>
   <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
 
@@ -616,6 +616,7 @@ function renderSongs(){
 function renderAlbums(){
   const q=$('#album-search').value.toLowerCase(),sort=$('#album-sort').value;
   const list=albums.filter(a=>!a.hidden&&(a.title+' '+a.artist).toLowerCase().includes(q));
+  if(sort==='recent')list.sort((a,b)=>(b.created||0)-(a.created||0));
   if(sort==='title')list.sort((a,b)=>a.title.localeCompare(b.title));
   if(sort==='year')list.sort((a,b)=>(+b.year||0)-(+a.year||0));
   if(sort==='year-asc')list.sort((a,b)=>(+a.year||9999)-(+b.year||9999)); // 연도 없는 앨범은 맨 뒤
