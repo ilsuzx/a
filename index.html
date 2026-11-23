@@ -171,8 +171,8 @@ h1{font-size:30px}
 </section>
 
 <section class="page" id="page-albums">
-  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
-  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도순</option><option value="artist">아티스트순</option><option value="random">랜덤순</option></select></div>
+  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="album-pick">오늘의 앨범</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
+  <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도 최신순</option><option value="year-asc">발매연도 오래된 순</option><option value="artist">아티스트순</option><option value="random">랜덤순</option></select><label class="albsz"><span id="album-cols-n"></span><input type="range" id="album-cols" min="2" max="12" step="1" aria-label="한 줄에 보이는 앨범 수"></label></div>
   <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
 
@@ -405,6 +405,67 @@ function dedupeAlbums(){
   _rd();
 }}
 
+// ===== 앨범: 커버 크기(한 줄에 몇 개) 조절 =====
+(()=>{
+  const g=document.getElementById('album-grid'),r=document.getElementById('album-cols'),n=document.getElementById('album-cols-n');if(!g||!r||!n)return;
+  const KEY='aftertone_albcols',label=v=>n.textContent=`한 줄 ${v}개`;
+  const apply=v=>{g.style.setProperty('--alb-cols',v);g.classList.add('cols');g.classList.toggle('dense',v>=8);r.value=v;label(v)};
+  const auto=()=>{ // 직접 고르기 전에는 지금 화면에 실제로 보이는 개수를 슬라이더에 맞춰요
+    if(g.classList.contains('cols')||!g.offsetParent)return;
+    const c=getComputedStyle(g).gridTemplateColumns.split(' ').filter(Boolean).length;
+    if(c>=2){r.value=Math.min(12,c);label(c)}};
+  let saved=0;try{saved=+localStorage.getItem(KEY)||0}catch(e){}
+  if(saved>=2&&saved<=12)apply(saved);else{r.value=matchMedia('(max-width:700px)').matches?4:6;label(r.value)}
+  r.addEventListener('input',()=>{apply(+r.value);try{localStorage.setItem(KEY,r.value)}catch(e){}});
+  {const _r=renderAlbums;renderAlbums=function(){_r();auto()}}
+  addEventListener('resize',auto);
+})();
+
+// ===== 앨범: 오늘의 앨범 뽑기 (랜덤 앨범 하나를 보여주고 수록곡 미리듣기를 이어서 재생) =====
+document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="pick-album-modal"><div class="modal"><div class="modal-head"><h2>오늘의 앨범</h2><button class="close" id="pa-close" type="button">×</button></div><div id="pa-body"></div></div></div>');
+(()=>{
+  const md=document.getElementById('pick-album-modal'),body=document.getElementById('pa-body');
+  let last=null,albQ=[],curA=null;
+  const tracksOf=a=>songs.filter(s=>s.album&&albT(s.album)===albT(a.title)&&albA(s.artist)===albA(a.artist));
+  const isOn=id=>playingId===id&&!player.paused;
+  function rows(){
+    const box=document.getElementById('pa-tracks');if(!box||!curA)return;
+    const tr=tracksOf(curA);
+    box.innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk${isOn(s.id)?' on':''}"><span>${esc(s.title)}</span>${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">${isOn(s.id)?'❚❚':'▶'}</button>`:''}</div>`).join('')
+      :'<p class="taste-text" style="margin:0">이 앨범으로 등록된 노래가 없어요.</p>';
+  }
+  function playFirst(){
+    if(!albQ.length)return;
+    if(playingId===albQ[0]){player.currentTime=0;player.play().catch(()=>{})}else playSong(albQ[0]);
+  }
+  function show(a){
+    curA=a;last=a.id;
+    const pv=tracksOf(a).filter(s=>s.preview);albQ=pv.map(s=>s.id);
+    body.innerHTML=`<div class="pa-top"><div class="pa-cover">${cover(a.cover)}</div><div class="pa-meta"><strong>${esc(a.title)}</strong><span>${esc(a.artist)}</span><small>${[a.year,a.genre].filter(Boolean).map(esc).join(' · ')}</small></div></div>`
+      +(a.note?`<p class="pa-note">“${esc(a.note)}”</p>`:'')
+      +'<div id="pa-tracks"></div>'
+      +(pv.length?'':'<p class="taste-text" style="margin:10px 0 0">미리듣기가 있는 수록곡이 없어요.</p>')
+      +`<div class="pa-actions"><button class="btn secondary" type="button" id="pa-again">다시 뽑기</button>${pv.length?'<button class="btn" type="button" id="pa-play">처음부터 듣기</button>':''}</div>`;
+    rows();md.classList.add('open');
+    document.getElementById('pa-again').onclick=pick;
+    const pb=document.getElementById('pa-play');if(pb)pb.onclick=playFirst;
+    playFirst();
+  }
+  function pick(){
+    if(!albums.length){toast('앨범이 없어요. 먼저 앨범을 추가해 보세요.');return}
+    let pool=albums.filter(a=>tracksOf(a).some(s=>s.preview));if(!pool.length)pool=albums.slice();  // 들을 수 있는 앨범을 먼저
+    if(pool.length>1)pool=pool.filter(a=>a.id!==last);
+    show(pool[Math.floor(Math.random()*pool.length)]);
+  }
+  document.getElementById('album-pick').onclick=pick;
+  document.getElementById('pa-close').onclick=()=>closeModals();
+  md.addEventListener('click',e=>{if(e.target===md)closeModals()});
+  setTimeout(()=>{ // player는 아래쪽에서 만들어지니 스크립트가 다 읽힌 뒤에 연결해요
+    player.addEventListener('ended',()=>{const i=albQ.indexOf(playingId);if(i>=0&&i<albQ.length-1)playSong(albQ[i+1])});
+    ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{if(md.classList.contains('open'))rows()}));
+  },0);
+})();
+
 // ===== 앨범: 끌어다 놓아서 순서 바꾸기 (PC: 그냥 드래그 / 모바일: 꾹 눌렀다가 드래그) =====
 (function(){
   const grid=document.getElementById('album-grid');if(!grid)return;
@@ -511,6 +572,7 @@ function renderAlbums(){
   const list=albums.filter(a=>(a.title+' '+a.artist).toLowerCase().includes(q));
   if(sort==='title')list.sort((a,b)=>a.title.localeCompare(b.title));
   if(sort==='year')list.sort((a,b)=>(+b.year||0)-(+a.year||0));
+  if(sort==='year-asc')list.sort((a,b)=>(+a.year||9999)-(+b.year||9999)); // 연도 없는 앨범은 맨 뒤
   if(sort==='artist')list.sort((a,b)=>String(a.artist).localeCompare(String(b.artist),'ko')||String(a.title).localeCompare(String(b.title),'ko'));
   if(sort==='random')list.sort((a,b)=>albRnd(a.id)-albRnd(b.id));
   $('#album-grid').innerHTML=list.map(albumCard).join('')||'<div class="empty" style="grid-column:1/-1"><b>아직 앨범이 없어요</b>좋아하는 앨범을 하나씩 모아보세요.</div>'}
@@ -3077,6 +3139,20 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 .album-ghost{position:fixed;left:0;top:0;z-index:9999;pointer-events:none;opacity:.92;box-shadow:0 12px 32px #0000005c;overflow:hidden}
 .album-ghost .album-info,.album-ghost .album-check{display:none}
 .album-drop-line{position:fixed;display:none;width:4px;background:#111;border-radius:2px;z-index:9998;pointer-events:none;box-shadow:0 0 0 1.5px #fff}
+.albsz{display:flex;align-items:center;gap:8px;font-size:13px;opacity:.75;white-space:nowrap}.albsz input{width:110px;accent-color:#111}
+@media(max-width:700px){.albsz{flex:1 1 100%}.albsz input{flex:1;width:auto}}
+#album-grid.cols{grid-template-columns:repeat(var(--alb-cols),minmax(0,1fr))}
+#album-grid.dense .album-info{padding:5px;gap:1px}
+#album-grid.dense .album-info strong{font-size:10px;-webkit-line-clamp:3}
+#album-grid.dense .album-info span{font-size:9px;-webkit-line-clamp:1}
+#pick-album-modal .modal{width:min(440px,100%)}
+.pa-top{display:flex;gap:16px;align-items:flex-end;margin-bottom:14px}
+.pa-cover{width:150px;aspect-ratio:1;flex:none;border-radius:10px;overflow:hidden;background:#0000000f;box-shadow:0 10px 30px -12px #0006}
+.pa-cover>*{width:100%;height:100%;object-fit:cover;display:block}
+.pa-meta{display:flex;flex-direction:column;gap:4px;min-width:0}.pa-meta strong{font-size:18px;line-height:1.25;letter-spacing:-.02em}.pa-meta span{font-size:14px;opacity:.7}.pa-meta small{font-size:12px;opacity:.5}
+.pa-note{font-size:13px;opacity:.7;margin:0 0 12px}
+#pa-tracks .trk.on span{font-weight:700}
+.pa-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
 </style>
 </body>
 </html>
