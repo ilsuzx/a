@@ -2252,17 +2252,17 @@ show(null);
   const saveU=()=>{try{localStorage.setItem(UK,JSON.stringify(userPl))}catch(e){}};
   const iid=it=>'ext:'+recNorm(it.title+it.artist);
   const regItem=it=>{if(it&&it.preview)extMap.set(iid(it),{...it,id:iid(it),ext:true})};
-  const cleanItem=x=>({title:String(x.title||''),artist:String(x.artist||''),cover:String(x.cover||''),preview:String(x.preview||''),seed:!!x.seed});
+  const cleanItem=x=>({title:String(x.title||''),artist:String(x.artist||''),cover:String(x.cover||''),preview:String(x.preview||''),seed:!!x.seed,...(x.lib?{lib:true}:{})});
   userPl.forEach(p=>(p.items||[]).forEach(regItem));
   window.__plExport=()=>userPl;
   window.__plImport=(arr,overwrite)=>{
-    const ok=(Array.isArray(arr)?arr:[]).filter(p=>p&&p.id&&Array.isArray(p.items)&&p.items.length).map(p=>({id:String(p.id),name:String(p.name||'플레이리스트'),seed:p.seed||null,done:!!p.done,created:Number(p.created)||Date.now(),items:p.items.filter(x=>x&&x.title&&x.artist).map(cleanItem)}));
+    const ok=(Array.isArray(arr)?arr:[]).filter(p=>p&&p.id&&Array.isArray(p.items)&&p.items.length).map(p=>({id:String(p.id),name:String(p.name||'플레이리스트'),seed:p.seed||null,size:Number(p.size)||undefined,useLib:p.useLib!==false,seedInfo:p.seedInfo||undefined,st:(p.st&&typeof p.st==='object')?p.st:undefined,done:!!p.done,created:Number(p.created)||Date.now(),items:p.items.filter(x=>x&&x.title&&x.artist).map(cleanItem)}));
     if(overwrite)userPl=ok;else{const ids=new Set(userPl.map(p=>p.id));ok.forEach(p=>{if(!ids.has(p.id))userPl.push(p)})}
     userPl.forEach(p=>p.items.forEach(regItem));saveU();drawU();
   };
 
   const uhost=document.createElement('div');uhost.className='block';uhost.id='upl-block';
-  uhost.innerHTML='<div class="head" style="margin-bottom:8px"><h2>플리 월드컵</h2><div style="display:flex;gap:8px"><button class="btn small" id="upl-new">새 플리 만들기</button></div></div><p class="taste-text" style="margin:0 0 12px">대표곡을 고르면 비슷한 곡이 2곡씩 나와요. 미리 들어 보고 더 좋은 곡을 고르면 플리에 담겨요.</p><div id="upl-grid" class="pl-grid"></div>';
+  uhost.innerHTML='<div class="head" style="margin-bottom:8px"><h2>플리 월드컵</h2><div style="display:flex;gap:8px"><button class="btn small" id="upl-new">새 플리 만들기</button></div></div><p class="taste-text" style="margin:0 0 12px">대표곡을 1~3곡 고르면 비슷한 곡이 2곡씩 나와요. 더 좋은 곡을 고르면 플리에 담기고, 이어서 담기 · 되돌리기도 돼요.</p><div id="upl-grid" class="pl-grid"></div>';
   host.parentNode.insertBefore(uhost,host);
 
   const wc=document.createElement('div');wc.className='modal-backdrop';wc.id='wc-modal';
@@ -2270,85 +2270,159 @@ show(null);
   document.body.append(wc);
 
   let W=null; // 진행 중인 월드컵 상태
-  const memo=new Map();
+  const memo=new Map(),metaMem=new Map();
+  const SZ=p=>Math.min(30,Math.max(3,Number(p&&p.size)||TOTAL)); // 플리마다 정한 곡 수 (옛 플리는 10곡)
   const getTags=async c=>{const k=skey(c);let t=tagMem.get(k);if(!t){try{t=await fullTags(c.artist,c.title)}catch(e){t=new Map()}tagMem.set(k,t||new Map())}return tagMem.get(k)};
   const idfVec=t=>{const v=new Map();t.forEach((w,name)=>{const k=norm(name);v.set(k,(v.get(k)||0)+w*Math.log(1+W.N/(W.df[k]||0.5)))});return unit(v)};
   const vecOf=c=>{const t=tagMem.get(skey(c));return t&&t.size?idfVec(t):null};
+
+  // ----- 곡 분석값(BPM·에너지·행복도 등): 보관함 곡은 저장된 값, 후보곡은 가능할 때만 조회 -----
+  const AUD=['energy','happiness','danceability','acousticness'];
+  const metaOf=c=>{const k=skey(c);return (W&&W.lm&&W.lm.get(k))||metaMem.get(k)||null};
+  function audTarget(){
+    const acc={},cnt={};
+    W.pl.items.forEach(it=>{const m=metaOf(it);if(!m)return;
+      AUD.concat(['bpm']).forEach(f=>{if(m[f]!=null&&(f!=='bpm'||m[f]>0)){acc[f]=(acc[f]||0)+m[f];cnt[f]=(cnt[f]||0)+1}})});
+    const t={};Object.keys(acc).forEach(f=>{t[f]=acc[f]/cnt[f]});
+    return Object.keys(t).length?t:null;
+  }
+  function audSim(t,m){
+    if(!t||!m)return null;
+    let d=0,n=0;
+    AUD.forEach(f=>{if(t[f]!=null&&m[f]!=null){d+=Math.abs(t[f]-m[f]);n++}});
+    if(t.bpm&&m.bpm){d+=Math.min(1,Math.abs(t.bpm-m.bpm)/60);n++}
+    return n>=2?Math.max(0,1-d/n):null;
+  }
+  async function ensureMeta(c){ // 무료 API라 호출 수를 아껴요: 한 번에 하나씩, 연속 3번 실패하면 이번 월드컵에서는 멈춰요
+    const w=W,k=skey(c);
+    if(!w||!w.lm||w.lm.has(k)||metaMem.has(k)||!window.fetchSongMeta||w.metaFail>=3||w.metaN>=24)return;
+    w.metaN++;metaMem.set(k,null);
+    try{
+      const r=await window.fetchSongMeta(c.title,c.artist),m=r&&r.m;
+      if(m&&(m.energy!=null||m.happiness!=null||(m.bpm&&m.danceability!=null))){metaMem.set(k,m);w.metaFail=0}else w.metaFail++;
+    }catch(e){w.metaFail++}
+  }
+
   function addPool(list,w,src){
     recFilterHook(list||[]).forEach(c=>{const k=skey(c);if(!W||W.shown.has(k))return;
       const e=W.pool.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0,from:new Set()};
       e.sum+=(c.match||0.3)*w;e.hits++;if(src)e.from.add(src);W.pool.set(k,e)});
   }
+  // 내 보관함 곡도 후보로 섞어요 (미리듣기가 있는 곡만, 지금 취향과 가까운 순 + 약간의 무작위)
+  function addLibCands(){
+    const tv=unit(W.tv);
+    songs.filter(s=>s.preview&&!W.shown.has(skey(s))&&!W.pool.has(skey(s)))
+      .map(s=>({s,r:(tv.size?cos(unit(rawVec(s).v),tv):0)+Math.random()*0.08}))
+      .sort((a,b)=>b.r-a.r).slice(0,8)
+      .forEach(({s})=>W.pool.set(skey(s),{title:s.title,artist:s.artist,sum:0,hits:0,from:new Set(),lib:s}));
+  }
+  // 점수 구성: 유사도(Last.fm) · 분위기(태그) · 곡 분석(가능할 때만)
+  function parts(x,tv,tg){
+    const sim0=Math.min(1,x.score/x.mx),v=vecOf(x.c);
+    const cs=v&&tv.size?Math.max(0,cos(v,tv)):null,au=audSim(tg,metaOf(x.c));
+    const sim=x.c.lib?(cs==null?0.3:cs):sim0;
+    let total;
+    if(cs!=null&&au!=null)total=0.4*sim+0.4*cs+0.2*au;
+    else if(cs!=null)total=0.5*sim+0.5*cs;
+    else if(au!=null)total=0.75*sim+0.25*au;
+    else total=sim;
+    return {sim,cs,au,total};
+  }
+  const badPen=c=>0.22*Math.min(2,W.bad.get(recNorm(c.artist))||0); // 탈락시킨 아티스트는 감점
   function rank(){
     const arr=[...W.pool.entries()].filter(([k])=>!W.shown.has(k)).map(([k,c])=>({k,c,score:c.sum*(1+0.6*(c.hits-1))}));
-    const mx=Math.max(1e-6,...arr.map(x=>x.score)),tv=unit(W.tv);
-    arr.forEach(x=>{const v=vecOf(x.c),cs=v?Math.max(0,cos(v,tv)):null;x.mx=mx;x.final=(cs==null?x.score/mx:0.5*x.score/mx+0.5*cs)+Math.random()*0.04});
+    const mx=Math.max(1e-6,...arr.map(x=>x.score)),tv=unit(W.tv),tg=audTarget();
+    arr.forEach(x=>{x.mx=mx;x.p=parts(x,tv,tg);x.final=x.p.total-badPen(x.c)+Math.random()*0.04});
     return arr.sort((a,b)=>b.final-a.final);
   }
   function why(x){
-    const t=tagMem.get(skey(x.c)),v=vecOf(x.c),tv=unit(W.tv);
-    let cs=null,tags=[];
+    const t=tagMem.get(skey(x.c)),v=vecOf(x.c),tv=unit(W.tv),p=parts(x,tv,audTarget());
+    let tags=[];
     if(t&&v&&tv.size){
-      cs=Math.max(0,cos(v,tv));
       const nm=new Map();t.forEach((w,name)=>nm.set(norm(name),name));
-      tags=[...v.entries()].map(([k,a])=>[nm.get(k)||k,a*(tv.get(k)||0)]).filter(p=>p[1]>0).sort((p,q)=>q[1]-p[1]).slice(0,3).map(p=>p[0]);
+      tags=[...v.entries()].map(([k,a])=>[nm.get(k)||k,a*(tv.get(k)||0)]).filter(q=>q[1]>0).sort((p1,q)=>q[1]-p1[1]).slice(0,3).map(q=>q[0]);
     }
-    const sim=Math.min(1,x.score/x.mx);
-    return {total:Math.round((cs==null?sim:0.5*sim+0.5*cs)*100),sim:Math.round(sim*100),cos:cs==null?null:Math.round(cs*100),hits:x.c.hits,from:[...(x.c.from||[])].slice(0,2),tags};
+    return {total:Math.round(p.total*100),sim:x.c.lib?null:Math.round(p.sim*100),cos:p.cs==null?null:Math.round(p.cs*100),aud:p.au==null?null:Math.round(p.au*100),hits:x.c.hits,from:[...(x.c.from||[])].slice(0,2),tags};
   }
-  const enrichMemo=x=>{
-    if(memo.has(x.k))return Promise.resolve(memo.get(x.k));
-    return enrich(x.c).then(it=>{memo.set(x.k,it);if(!it&&W)W.shown.add(x.k);return it});
+  const libItem=s=>{ // 보관함 곡은 이미 정보가 있어서 검색 없이 카드로 만들어요
+    if(!s||!s.preview)return null;
+    const it={id:iid(s),title:s.title,artist:s.artist,cover:s.cover||'',preview:s.preview,ext:true,lib:true};
+    extMap.set(it.id,it);return it;
+  };
+  const enrichMemo=x=>{ // 결과를 Promise로 기억해서 같은 곡을 중복 조회하지 않아요
+    if(memo.has(x.k))return memo.get(x.k);
+    const p=(x.c.lib?Promise.resolve(libItem(x.c.lib)):enrich(x.c)).then(it=>{if(!it&&W)W.shown.add(x.k);return it});
+    memo.set(x.k,p);return p;
   };
   async function pickPair(){
-    const rk=rank(),ready=[];
-    for(let i=0;i<rk.length&&i<16&&ready.length<3;i+=4){
-      const res=await Promise.all(rk.slice(i,i+4).map(async x=>({x,it:await enrichMemo(x)})));
-      res.forEach(r=>{if(r.it)ready.push(r)});
+    const rk=rank(),explore=W.round>0&&W.round%4===3; // 4라운드마다 한 번은 의외의 곡을 섞어요
+    const scan=async list=>{
+      const out=[];
+      for(let i=0;i<list.length&&out.length<3;i+=4){
+        const res=await Promise.all(list.slice(i,i+4).map(async x=>({x,it:await enrichMemo(x)})));
+        res.forEach(r=>{if(r.it)out.push(r)});
+      }
+      return out;
+    };
+    const top=await scan(rk.slice(0,16));
+    if(top.length<2)return null;
+    const a=top[0];let b=null,ex=false;
+    if(explore){
+      const rest=rk.slice(6,30).filter(x=>x!==a.x&&recNorm(x.c.artist)!==recNorm(a.it.artist));
+      for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]]}
+      const found=await scan(rest.slice(0,8));
+      if(found.length){b=found[0];ex=true}
     }
-    if(ready.length<2)return null;
-    const a=ready[0],b=ready.slice(1).find(r=>recNorm(r.it.artist)!==recNorm(a.it.artist))||ready[1];
+    if(!b)b=top.slice(1).find(r=>recNorm(r.it.artist)!==recNorm(a.it.artist))||top[1];
     const pair=Math.random()<0.5?[a,b]:[b,a];
     await Promise.all(pair.map(r=>getTags(r.x.c))); // 태그 일치도 계산용
-    pair.forEach(r=>{r.it.why=why(r.x)});
-    return pair.map(r=>r.it);
+    return pair.map(r=>({...r.it,why:why(r.x),explore:ex&&r===b}));
   }
-  function prefetch(){ // 고르는 동안 다음 후보의 태그·미리듣기를 미리 불러와요
-    const tok=W.tok,rk=rank().slice(0,8);
+  function prefetch(){ // 고르는 동안 다음 후보의 태그·미리듣기를 넉넉히 미리 불러와요
+    const tok=W.tok,rk=rank().slice(0,12);
     pool(rk,3,async x=>{if(W&&W.tok===tok)await getTags(x.c)});
-    pool(rk.slice(0,4),2,async x=>{if(W&&W.tok===tok)await enrichMemo(x)});
+    pool(rk.slice(0,10),3,async x=>{if(W&&W.tok===tok)await enrichMemo(x)});
+    (async()=>{for(const x of rk.slice(0,4)){if(!W||W.tok!==tok)return;await ensureMeta(x.c)}})();
   }
   const wb=()=>$('#wc-body');
+  const softLoad=msg=>{ // 바로 로딩 화면으로 바꾸지 않고, 0.3초 넘게 걸릴 때만 보여줘요
+    W.loading=true;W.msg=msg;const tok=W.tok,b=wb();if(b)b.style.opacity='.55';
+    setTimeout(()=>{if(W&&W.tok===tok&&W.loading)wcView()},300);
+  };
   function wcCard(c,i){
     const on=playingId===c.id&&!player.paused,w=c.why;
-    const whyHtml=w?`<div class="wc-why"><div class="wc-score"><b>추천 점수 ${w.total}</b>${w.cos!=null?`<span>분위기 ${w.cos}</span>`:''}<span>유사도 ${w.sim}</span></div>${w.from.length?`<p>「${w.from.map(esc).join('」, 「')}」와(과) 비슷해요${w.hits>1?` · ${w.hits}곡과 겹쳐요`:''}</p>`:''}${w.tags.length?`<p>공통 태그: ${w.tags.map(esc).join(', ')}</p>`:''}</div>`:'';
-    return `<div class="wc-card"><div class="wc-cover">${cover(c.cover)}</div><strong>${esc(c.title)}</strong><span>${esc(c.artist)}</span>${whyHtml}<div class="wc-btns"><button class="btn ghost small" data-wcplay="${i}">${on?'❚❚ 멈춤':'▶ 듣기'}</button><button class="btn small" data-wc="pick${i}">이 곡 선택</button></div></div>`;
+    const badge=(c.explore?'<em class="wc-badge">🎲 의외의 곡</em>':'')+(c.lib?'<em class="wc-badge">내 곡</em>':'');
+    const whyHtml=w?`<div class="wc-why"><div class="wc-score"><b>추천 점수 ${w.total}</b>${w.cos!=null?`<span>분위기 ${w.cos}</span>`:''}${w.sim!=null?`<span>유사도 ${w.sim}</span>`:''}${w.aud!=null?`<span>곡 분석 ${w.aud}</span>`:''}</div>${w.from.length?`<p>「${w.from.map(esc).join('」, 「')}」와(과) 비슷해요${w.hits>1?` · ${w.hits}곡과 겹쳐요`:''}</p>`:(c.lib?'<p>내 보관함에 있는 곡이에요</p>':'')}${c.explore?'<p>유사도가 조금 낮아도 새 취향을 찾아보려고 넣은 곡이에요</p>':''}${w.tags.length?`<p>공통 태그: ${w.tags.map(esc).join(', ')}</p>`:''}</div>`:'';
+    return `<div class="wc-card"><div class="wc-cover">${cover(c.cover)}</div>${badge?`<div class="wc-badges">${badge}</div>`:''}<strong>${esc(c.title)}</strong><span>${esc(c.artist)}</span>${whyHtml}<div class="wc-btns"><button class="btn ghost small" data-wcplay="${i}">${on?'❚❚ 멈춤':'▶ 듣기'}</button><button class="btn small" data-wc="pick${i}">이 곡 선택</button></div></div>`;
   }
   function wcView(){
-    if(!W)return;const pl=W.pl;$('#wc-title').textContent=pl.name;
-    const chips=pl.items.map((s,i)=>`<em class="${s.seed?'seed':''}">${esc(s.title)}</em>`).join('');
+    if(!W)return;const pl=W.pl;$('#wc-title').textContent=pl.name;wb().style.opacity='';
     if(W.view==='seed'){
-      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">플리의 중심이 될 대표곡을 골라 주세요.</p><input id="wc-q" class="search" placeholder="곡명 또는 아티스트 검색" style="width:100%;margin-bottom:8px"><div id="wc-seeds" class="wc-seeds"></div>`;
+      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">플리의 중심이 될 대표곡을 1~3곡 골라 주세요.</p><div class="wc-opts"><div class="seg" id="wc-size" role="group" aria-label="곡 수">${[5,10,20].map(n=>`<button type="button" data-wcsize="${n}" class="${W.size===n?'on':''}">${n}곡</button>`).join('')}</div><label class="wc-lib"><input type="checkbox" id="wc-lib" ${W.lib?'checked':''}> 내 보관함 곡도 섞기</label></div><input id="wc-q" class="search" placeholder="곡명 또는 아티스트 검색" style="width:100%;margin-bottom:8px"><div id="wc-seeds" class="wc-seeds"></div><div class="wc-actions"><button class="btn" data-wc="go" id="wc-go">시작</button></div>`;
       wcSeeds('');return;
     }
+    const chips=pl.items.map(s=>`<em class="${s.seed?'seed':''}">${esc(s.title)}</em>`).join('');
     if(W.view==='done'){
-      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">${pl.items.length}곡으로 플리가 완성됐어요.</p><div class="pl-list" style="max-height:340px">${pl.items.map((s,j)=>`<div class="pl-row"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span></div>`).join('')}</div><div class="wc-actions"><button class="btn" data-wc="close">닫기</button></div>`;return;
+      wb().innerHTML=`<p class="taste-text" style="margin:0 0 10px">${pl.items.length}곡으로 플리가 완성됐어요.</p><div class="pl-list" style="max-height:340px">${pl.items.map((s,j)=>`<div class="pl-row"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${s.lib?'<b class="pl-ext">내 곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span></div>`).join('')}</div><div class="wc-actions">${W.hist&&W.hist.length?'<button class="btn ghost" data-wc="undo">↩ 마지막 선택 되돌리기</button>':''}<button class="btn" data-wc="close">닫기</button></div>`;return;
     }
     if(W.loading){wb().innerHTML=`<div class="api-status">${esc(W.msg||'비슷한 곡을 찾고 있어요…')}</div><div class="wc-picked">${chips}</div>`;return}
-    wb().innerHTML=`<div class="wc-prog">${pl.items.length}/${TOTAL}곡 · 대표곡 <b>${esc(pl.items[0].title)}</b></div>
+    const sd=pl.items.filter(s=>s.seed),sn=(sd[0]||pl.items[0]).title+(sd.length>1?` 외 ${sd.length-1}곡`:''),sz=SZ(pl);
+    wb().innerHTML=`<div class="wc-prog">${pl.items.length}/${sz}곡 · 대표곡 <b>${esc(sn)}</b></div><div class="wc-bar"><i style="width:${Math.min(100,pl.items.length/sz*100)}%"></i></div>
       <div class="wc-grid">${W.cur.map(wcCard).join('')}</div>
       <div class="wc-actions"><button class="btn ghost" data-wc="both">둘 다 좋아</button><button class="btn ghost" data-wc="none">둘 다 별로</button></div>
       <div class="wc-picked">${chips}</div>
-      <div class="wc-foot">${pl.items.length>=2?'<button class="btn ghost small" data-wc="stop">여기서 마치기</button>':''}</div>`;
+      <div class="wc-foot">${W.hist.length?'<button class="btn ghost small" data-wc="undo">↩ 되돌리기</button>':''}${pl.items.length>=2?'<button class="btn ghost small" data-wc="stop">여기서 마치기</button>':''}</div>`;
   }
   function wcSeeds(q){
     const box=$('#wc-seeds');if(!box)return;
     const t=q.trim().toLowerCase();
-    const l=songs.filter(s=>!t||(s.title+' '+s.artist).toLowerCase().includes(t)).slice(0,40);
-    box.innerHTML=l.map(s=>`<button type="button" class="wc-seed" data-wcseed="${esc(s.id)}"><span class="mini-cover">${cover(s.cover)}</span><span class="pl-t">${esc(s.title)}<small>${esc(s.artist)}</small></span></button>`).join('')||'<div class="empty">검색 결과가 없어요.</div>';
+    const chosen=W.sel.map(id=>songs.find(x=>x.id===id)).filter(Boolean);
+    const rest=songs.filter(s=>!W.sel.includes(s.id)&&(!t||(s.title+' '+s.artist).toLowerCase().includes(t))).slice(0,40);
+    box.innerHTML=[...chosen,...rest].map(s=>{const on=W.sel.includes(s.id);return `<button type="button" class="wc-seed${on?' on':''}" data-wcseed="${esc(s.id)}"><span class="mini-cover">${cover(s.cover)}</span><span class="pl-t">${esc(s.title)}<small>${esc(s.artist)}</small></span><b class="wc-check">${on?'✓':''}</b></button>`}).join('')||'<div class="empty">검색 결과가 없어요.</div>';
+    const go=$('#wc-go');if(go){go.disabled=!W.sel.length;go.textContent=W.sel.length?`대표곡 ${W.sel.length}곡으로 시작`:'대표곡을 골라 주세요'}
   }
   async function nextRound(){
-    const tok=W.tok;W.loading=true;W.msg='다음 비교곡을 찾고 있어요…';wcView();
+    const tok=W.tok;softLoad('다음 비교곡을 찾고 있어요…');
     if(W.pool.size-W.shown.size<2){ // 후보가 모자라면 지금까지 담은 곡의 유사곡으로 한 번 더 넓혀요
       for(const s of W.pl.items.slice(-3)){try{addPool(await getSimilar(s.artist,s.title,40),0.6,s.title)}catch(e){}}
     }
@@ -2358,58 +2432,101 @@ show(null);
     W.cur=pair;W.loading=false;wcView();
     pair.forEach(c=>getTags(c));prefetch();
   }
+  // 이어서 담기와 되돌리기를 위해 탈락곡·취향 벡터·감점 아티스트를 플리에 같이 저장해요
+  function persist(){
+    const pl=W.pl;
+    pl.st={shown:[...W.shown].slice(-300),tv:[...W.tv.entries()].sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,60).map(([k,v])=>[k,Math.round(v*1000)/1000]),bad:[...W.bad.entries()],round:W.round};
+    saveU();
+  }
   function finishWc(){
-    W.pl.done=true;saveU();W.view='done';wcView();drawU();stopPlayer();
+    W.pl.done=true;persist();W.view='done';wcView();drawU();stopPlayer();
   }
   async function startWc(pl,isNew){
-    const seed=pl.items[0];
-    W={pl,pool:new Map(),shown:new Set(pl.items.map(skey)),tv:new Map(),cur:[],loading:true,view:'match',msg:'대표곡과 비슷한 곡을 찾고 있어요…',tok:Date.now(),df:{},N:Math.max(1,songs.length)};
-    const tok=W.tok;
+    const seeds=pl.items.filter(s=>s.seed);if(!seeds.length)seeds.push(pl.items[0]);
+    W={pl,pool:new Map(),shown:new Set(pl.items.map(skey)),tv:new Map(),bad:new Map(),hist:[],round:0,cur:[],loading:true,view:'match',msg:'대표곡과 비슷한 곡을 찾고 있어요…',tok:Date.now(),df:{},N:Math.max(1,songs.length),lm:new Map(songs.filter(s=>s.meta).map(s=>[skey(s),s.meta])),metaFail:0,metaN:0};
+    const tok=W.tok,st=pl.st;
     songs.map(rawVec).forEach(o=>o.v.forEach((_,k)=>{W.df[k]=(W.df[k]||0)+1}));
     openModal('wc-modal');wcView();
-    let sm=new Map();try{sm=new Map(await fullTags(seed.artist,seed.title))}catch(e){}
-    rawVec({title:seed.title,artist:seed.artist,sound:(pl.seedInfo&&pl.seedInfo.sound)||'',genre:(pl.seedInfo&&pl.seedInfo.genre)||'',year:''}).v.forEach((w,k)=>sm.set(k,(sm.get(k)||0)+w));
+    if(st&&Array.isArray(st.tv)&&st.tv.length){ // 이어서 담기: 저장해 둔 취향과 탈락곡을 그대로 불러와요
+      W.tv=new Map(st.tv);(st.shown||[]).forEach(k=>W.shown.add(k));W.bad=new Map(st.bad||[]);W.round=Number(st.round)||0;
+    }else{
+      for(const sd of seeds){
+        let sm=new Map();try{sm=new Map(await fullTags(sd.artist,sd.title))}catch(e){}
+        if(!W||W.tok!==tok)return;
+        const ls=songs.find(x=>skey(x)===skey(sd)),info=ls||(seeds.length===1&&pl.seedInfo)||{};
+        rawVec({title:sd.title,artist:sd.artist,sound:info.sound||'',genre:info.genre||'',year:''}).v.forEach((w,k)=>sm.set(k,(sm.get(k)||0)+w));
+        if(sm.size)idfVec(sm).forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)+x));
+      }
+      const picks=pl.items.filter(x=>!x.seed).slice(0,25); // 예전 플리: 이미 담은 곡의 취향도 반영해요
+      await Promise.all(picks.map(getTags));
+      if(!W||W.tok!==tok)return;
+      picks.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)+0.7*x))});
+    }
+    await Promise.all(seeds.map(async sd=>{try{addPool(await getSimilar(sd.artist,sd.title,50),1,sd.title)}catch(e){}}));
+    for(const s of pl.items.filter(x=>!x.seed).slice(-3)){try{addPool(await getSimilar(s.artist,s.title,30),0.6,s.title)}catch(e){}}
     if(!W||W.tok!==tok)return;
-    W.tv=sm.size?idfVec(sm):new Map();
-    try{addPool(await getSimilar(seed.artist,seed.title,50),1,seed.title)}catch(e){}
-    for(const s of pl.items.slice(1,4)){try{addPool(await getSimilar(s.artist,s.title,30),0.6,s.title)}catch(e){}}
-    if(!W||W.tok!==tok)return;
+    if(pl.useLib!==false)addLibCands();
     if(!W.pool.size){closeWc();toast('이 곡과 비슷한 곡을 찾지 못했어요. 다른 대표곡으로 시도해 보세요.');return}
-    nextRound();
+    persist();nextRound();
   }
   function closeWc(){if(W)W.tok=0;stopPlayer();queue=[];closeModals();W=null;drawU()}
   async function choose(mode){
     if(!W||W.loading||W.cur.length<2)return;
-    const [a,b]=W.cur,pl=W.pl;let keep=[],drop=[];
+    const tok=W.tok,[a,b]=W.cur,pl=W.pl;let keep=[],drop=[];
     if(mode==='a'||mode==='b'){keep=[mode==='a'?a:b];drop=[mode==='a'?b:a]}else if(mode==='both')keep=[a,b];else drop=[a,b];
-    stopPlayer();W.loading=true;W.msg='취향을 반영하고 있어요…';wcView();
+    W.hist.push({n:pl.items.length,shown:new Set(W.shown),tv:new Map(W.tv),bad:new Map(W.bad),round:W.round,cur:W.cur}); // 되돌리기용
+    if(W.hist.length>20)W.hist.shift();
+    stopPlayer();softLoad('취향을 반영하고 있어요…');
     await Promise.all([...keep,...drop].map(getTags));
+    if(!W||W.tok!==tok)return;
+    const dw=mode==='none'?0.6:0.3,bw=mode==='none'?1:0.4; // 둘 다 별로면 더 크게 반영해요
     keep.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)+0.7*x));
-      if(pl.items.length<TOTAL){const it=cleanItem(c);pl.items.push(it);regItem(it)}W.shown.add(skey(c))});
-    drop.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)-0.3*x));W.shown.add(skey(c))});
+      if(pl.items.length<SZ(pl)){const it=cleanItem(c);pl.items.push(it);regItem(it)}W.shown.add(skey(c))});
+    drop.forEach(c=>{const v=vecOf(c);if(v)v.forEach((x,k)=>W.tv.set(k,(W.tv.get(k)||0)-dw*x));W.shown.add(skey(c));
+      const ak=recNorm(c.artist);W.bad.set(ak,(W.bad.get(ak)||0)+bw)});
     keep.forEach(c=>{getSimilar(c.artist,c.title,30).then(l=>addPool(l,0.6,c.title)).catch(()=>{})});
-    saveU();drawU();
-    if(pl.items.length>=TOTAL)finishWc();else nextRound();
+    W.round++;persist();drawU();
+    if(pl.items.length>=SZ(pl))finishWc();else{prefetch();nextRound()}
+  }
+  function undoPick(){
+    if(!W||!W.hist||!W.hist.length||(W.loading&&W.view!=='done'))return;
+    const s=W.hist.pop(),pl=W.pl;
+    stopPlayer();
+    pl.items.length=s.n;W.shown=s.shown;W.tv=s.tv;W.bad=s.bad;W.round=s.round;W.cur=s.cur;
+    pl.done=false;W.view='match';W.loading=false;
+    persist();drawU();wcView();
+    W.cur.forEach(c=>getTags(c));
+  }
+  function startFromSeed(){
+    const seeds=W.sel.map(id=>songs.find(x=>x.id===id)).filter(Boolean);
+    if(!seeds.length){toast('대표곡을 1곡 이상 골라 주세요.');return}
+    const items=seeds.map(s=>{const it=cleanItem({...s,seed:true});regItem(it);return it});
+    const pl={id:'u'+Date.now().toString(36),name:items[0].title+(items.length>1?` 외 ${items.length-1}곡`:'')+' 플리',seed:null,size:W.size,useLib:W.lib,done:false,created:Date.now(),items};
+    userPl.unshift(pl);saveU();drawU();startWc(pl,true);
   }
   wc.addEventListener('click',e=>{
     const sd=e.target.closest('[data-wcseed]');
-    if(sd&&W){const s=songs.find(x=>x.id===sd.dataset.wcseed);if(!s)return;
-      const it=cleanItem({...s,seed:true});
-      const pl={id:'u'+Date.now().toString(36),name:s.title+' 플리',seed:null,seedInfo:{sound:s.sound||'',genre:s.genre||''},done:false,created:Date.now(),items:[it]};
-      regItem(it);userPl.unshift(pl);saveU();drawU();startWc(pl,true);return}
+    if(sd&&W&&W.view==='seed'){
+      const id=sd.dataset.wcseed,i=W.sel.indexOf(id);
+      if(i>=0)W.sel.splice(i,1);else if(W.sel.length>=3){toast('대표곡은 최대 3곡까지 고를 수 있어요.');return}else W.sel.push(id);
+      wcSeeds($('#wc-q')?$('#wc-q').value:'');return}
+    const sz=e.target.closest('[data-wcsize]');
+    if(sz&&W){W.size=Number(sz.dataset.wcsize);document.querySelectorAll('#wc-size button').forEach(x=>x.classList.toggle('on',x===sz));return}
     const pb=e.target.closest('[data-wcplay]');
     if(pb&&W){const c=W.cur[Number(pb.dataset.wcplay)];if(c){queue=[];playSong(c.id)}return}
     const b=e.target.closest('[data-wc]');
     if(b){const m=b.dataset.wc;
       if(m==='close')closeWc();else if(m==='stop'){if(W&&W.pl.items.length>=2)finishWc()}
+      else if(m==='undo')undoPick();else if(m==='go')startFromSeed();
       else if(m==='pick0')choose('a');else if(m==='pick1')choose('b');else choose(m);return}
     if(e.target===wc)closeWc();
   });
+  wc.addEventListener('change',e=>{if(e.target.id==='wc-lib'&&W)W.lib=e.target.checked});
   wc.addEventListener('input',e=>{if(e.target.id==='wc-q')wcSeeds(e.target.value)});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&W)closeWc()});
   $('#upl-new').onclick=()=>{
     if(!songs.length){toast('대표곡으로 쓸 노래를 먼저 추가해 주세요.');return}
-    W={pl:{name:'새 플리',items:[]},view:'seed',pool:new Map(),shown:new Set(),tv:new Map(),cur:[],tok:Date.now(),df:{},N:1};
+    W={pl:{name:'새 플리',items:[]},view:'seed',pool:new Map(),shown:new Set(),tv:new Map(),bad:new Map(),hist:[],cur:[],tok:Date.now(),df:{},N:1,sel:[],size:10,lib:true};
     openModal('wc-modal');wcView();
   };
 
@@ -2421,9 +2538,9 @@ show(null);
       const play=p.items.filter(s=>s.preview).length,open=uOpen.has(p.id);
       const playing=queue.includes(playingId)&&!player.paused&&p.items.some(x=>iid(x)===playingId);
       return `<div class="pl-card" data-u="${esc(p.id)}">
-        <div class="pl-top">${mosaic(p.items)}<div class="pl-info"><strong>${esc(p.name)}</strong><span>${p.items.length}/${TOTAL}곡 · 대표곡 ${esc(p.items[0].title)}</span></div></div>
-        <div class="pl-actions"><button class="btn small" data-ua="play" ${play?'':'disabled'}>${playing?'■ 정지':'▶ 재생'}</button>${p.items.length<TOTAL?'<button class="btn ghost small" data-ua="more">이어서 담기</button>':''}<button class="btn ghost small" data-ua="toggle">${open?'접기':'곡 보기'}</button><button class="btn ghost small" data-ua="copy">복사</button><button class="btn ghost small" data-ua="rename">이름</button><button class="btn ghost small" data-ua="del">삭제</button></div>
-        ${open?`<div class="pl-list">${p.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.seed&&!recRegHook(s)?`<button class="icon-btn" data-uadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">＋</button>`:''}${s.preview?`<button class="icon-btn" data-usong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?'❚❚':'▶'}</button>`:''}</div>`).join('')}</div>`:''}
+        <div class="pl-top">${mosaic(p.items)}<div class="pl-info"><strong>${esc(p.name)}</strong><span>${p.items.length}/${SZ(p)}곡 · 대표곡 ${esc((p.items.find(x=>x.seed)||p.items[0]).title)}${p.items.filter(x=>x.seed).length>1?' 외 '+(p.items.filter(x=>x.seed).length-1)+'곡':''}</span></div></div>
+        <div class="pl-actions"><button class="btn small" data-ua="play" ${play?'':'disabled'}>${playing?'■ 정지':'▶ 재생'}</button>${p.items.length<SZ(p)?'<button class="btn ghost small" data-ua="more">이어서 담기</button>':''}<button class="btn ghost small" data-ua="toggle">${open?'접기':'곡 보기'}</button><button class="btn ghost small" data-ua="copy">복사</button><button class="btn ghost small" data-ua="rename">이름</button><button class="btn ghost small" data-ua="del">삭제</button></div>
+        ${open?`<div class="pl-list">${p.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${s.lib?'<b class="pl-ext">내 곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.seed&&!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-uadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">＋</button>`:''}${s.preview?`<button class="icon-btn" data-usong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?'❚❚':'▶'}</button>`:''}</div>`).join('')}</div>`:''}
       </div>`}).join('');
   }
   $('#upl-grid').addEventListener('click',e=>{
@@ -2491,7 +2608,15 @@ show(null);
 .wc-picked{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}
 .wc-picked em{font-style:normal;font-size:11px;color:var(--muted);background:var(--soft);padding:2px 8px;border-radius:999px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wc-picked em.seed{color:var(--fg);font-weight:600}
-.wc-foot{text-align:right;margin-top:8px}
+.wc-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.wc-bar{height:3px;background:var(--soft);border-radius:3px;overflow:hidden;margin:-4px 0 10px}.wc-bar i{display:block;height:100%;background:var(--fg);transition:width .3s}
+.wc-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.wc-badge{font-style:normal;font-size:11px;background:var(--fg);color:#fff;border-radius:999px;padding:1px 8px}
+.wc-opts{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.wc-lib{font-size:13px;display:flex;gap:6px;align-items:center}
+.wc-seed.on{background:var(--soft)}
+.wc-seed .wc-check{margin-left:auto;width:20px;text-align:center;flex:none}
+#wc-body{transition:opacity .15s}
 .wc-seeds{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:2px}
 .wc-seed{display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;border-radius:10px;padding:6px;cursor:pointer;min-width:0}
 .wc-seed:hover{background:var(--soft)}
