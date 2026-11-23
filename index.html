@@ -246,6 +246,8 @@ h1{font-size:30px}
   <div class="modal-actions"><button type="button" class="btn secondary" id="pl-cancel" style="display:none">중단</button><button type="button" class="btn secondary" data-close>닫기</button><button type="button" class="btn" id="pl-run">가져오기</button></div>
 </div></div>
 
+<div class="pl-float" id="pl-float" role="button" tabindex="0" aria-label="플레이리스트 가져오기 진행 상황" style="display:none"></div>
+<style>.pl-float{position:fixed;right:14px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:19;background:var(--fg);color:#fff;padding:8px 14px;border-radius:20px;font-size:12px;line-height:1.3;cursor:pointer;box-shadow:0 4px 14px #0003;max-width:70vw;white-space:nowrap}</style>
 <div class="toast" id="toast"></div>
 <div class="mini" id="mini" style="display:none"><button id="mini-toggle" aria-label="재생/일시정지">▶</button><div class="mini-info"><strong id="mini-title"></strong><span id="mini-artist"></span></div><input type="range" id="mini-seek" min="0" max="100" value="0" aria-label="재생 위치"><button id="mini-close" aria-label="닫기">×</button></div>
 <audio id="player" preload="none"></audio>
@@ -1569,6 +1571,8 @@ async function plLookup(it,cancelled){
   plWhy=(out&&out.previewUrl)?'':inf?PL_WHY.preview:(!seen&&errs)?PL_WHY.api:!seen?PL_WHY.none:PL_WHY.nomatch;
   return out;
 }
+$('#pl-float').onclick=()=>openModal('pl-modal');
+$('#pl-float').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openModal('pl-modal')}});
 $('#pl-cancel').onclick=()=>{plCancel=true};
 $('#pl-run').onclick=async()=>{
   if(plBusy)return;
@@ -1577,10 +1581,12 @@ $('#pl-run').onclick=async()=>{
   const lookup=true,wantSound=$('#pl-sound').checked,st=$('#pl-status');
   const keys=new Set(songs.map(skey)),fresh=[],newAlbums=[],base=Date.now();
   let dup=0,found=0,done=0,nop=0,proc=0;const whyN={};const etaT0=Date.now();
-  const eta=i=>{if(proc<2)return ' · 남은 시간 계산 중';const sec=(Date.now()-etaT0)/proc*(items.length-i)/1000;return sec<60?' · 1분 미만 남음':` · 약 ${Math.ceil(sec/60)}분 남음`};
+  const etaTxt=i=>{if(proc<2)return '남은 시간 계산 중';const sec=(Date.now()-etaT0)/proc*(items.length-i)/1000;return sec<60?'1분 미만 남음':`약 ${Math.ceil(sec/60)}분 남음`};
+  const eta=i=>' · '+etaTxt(i);
+  const pf=$('#pl-float');const pfShow=i=>{pf.textContent=`${i+1}/${items.length} · ${etaTxt(i)}`;pf.style.display=''};
   plBusy=true;plCancel=false;$('#pl-run').disabled=true;$('#pl-cancel').style.display='';
   for(let i=0;i<items.length&&!plCancel;i++){
-    const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}${eta(i)}`;
+    const it=items[i];st.textContent=`처리 중 ${i+1} / ${items.length} · ${it.title}${eta(i)}`;pfShow(i);
     if(keys.has(skey(it))){dup++;continue}
     keys.add(skey(it));
     const s={id:uid(),title:it.title,artist:it.artist,album:it.album,year:it.year,genre:it.genre,sound:'',cover:'',note:'',preview:'',created:base-i};
@@ -1614,7 +1620,7 @@ $('#pl-run').onclick=async()=>{
   }
   songs=[...fresh,...songs];albums=[...newAlbums,...albums];
   save();render();
-  plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';
+  plBusy=false;$('#pl-run').disabled=false;$('#pl-cancel').style.display='none';pf.style.display='none';
   const msg=`${done}곡 추가${lookup?` (정보 매칭 ${found}곡)`:''}${dup?` · 중복 ${dup}곡 건너뜀`:''}${nop?` · 미리듣기 없음 ${nop}곡은 설정의 '제외된 곡'으로 (${Object.entries(whyN).map(([k,v])=>k+' '+v+'곡').join(', ')})`:''}${plCancel?' · 중단됨':''}`;
   st.textContent=msg;toast(msg);
 };
