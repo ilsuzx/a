@@ -171,9 +171,9 @@ h1{font-size:30px}
 </section>
 
 <section class="page" id="page-albums">
-  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="intro-bulk">소개 일괄 불러오기</button><button class="btn secondary" id="clean-albums">빈 앨범 정리</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
+  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
   <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도순</option></select></div>
-  <p class="taste-text" id="intro-bulk-status" style="font-size:13px;margin:12px 0 0"></p><div class="grid" id="album-grid" style="margin-top:20px"></div>
+  <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
 
 <section class="page" id="page-taste">
@@ -853,14 +853,6 @@ let songSearchScope='all';
 function setSongScope(v){songSearchScope=v;document.querySelectorAll('#api-song-scope button').forEach(b=>b.classList.toggle('on',b.dataset.sscope===v));$('#api-song-query').placeholder=v==='title'?'곡명으로 검색':v==='artist'?'아티스트명으로 검색':'곡명 또는 아티스트 검색'}
 document.querySelectorAll('#api-song-scope button').forEach(b=>b.addEventListener('click',()=>setSongScope(b.dataset.sscope)));
 $('#api-album-query').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();runAppleSearch('album')}});
-// 수록곡도 감상 메모도 없는 앨범 일괄 정리 (예전에 지운 곡의 잔여 앨범용)
-$('#clean-albums').onclick=()=>{
-  const same=(a,s)=>s.album&&s.album.toLowerCase()===a.title.toLowerCase()&&s.artist.toLowerCase()===a.artist.toLowerCase();
-  const dead=albums.filter(a=>!a.note&&!songs.some(s=>same(a,s)));
-  if(!dead.length){toast('정리할 빈 앨범이 없어요.');return}
-  if(!confirm(`수록곡과 감상 메모가 없는 앨범 ${dead.length}개를 삭제할까요?\n`+dead.slice(0,8).map(a=>'· '+a.title).join('\n')+(dead.length>8?'\n…':'')))return;
-  const backup=albums.slice();albums=albums.filter(a=>!dead.includes(a));save();render();
-  undoToast(`빈 앨범 ${dead.length}개를 정리했어요.`,()=>{albums=backup;save();render()})};
 // ===== 태그로 사운드 자동 채우기 =====
 const MUSIC_KEY='660e25c207739006dd8b6d13bff8a539';
 let lfmWarnAt=0;const lfmWarn=m=>{if(Date.now()-lfmWarnAt>20000){lfmWarnAt=Date.now();toast(m)}};
@@ -1903,28 +1895,6 @@ window.fetchIntroUI=async function(auto){
 };
 $('#intro-fetch').onclick=()=>fetchIntroUI(false);
 
-// 앨범 소개 일괄 불러오기
-let ibBusy=false,ibStop=false;
-$('#intro-bulk').onclick=async()=>{
-  if(ibBusy){ibStop=true;return}
-  const todo=albums.filter(a=>!a.intro);
-  if(!todo.length){toast('소개를 불러올 앨범이 없어요.');return}
-  if(!confirm(`소개가 없는 앨범 ${todo.length}개의 소개를 자동으로 찾을까요? 시간이 걸릴 수 있어요.`))return;
-  ibBusy=true;ibStop=false;$('#intro-bulk').textContent='중단';
-  const st=$('#intro-bulk-status');let got=0,i=0;
-  for(;i<todo.length&&!ibStop;i++){
-    const a=todo[i];st.textContent=`검색 중 ${i+1} / ${todo.length} · ${a.title} (소개 ${got})`;
-    try{
-      const r=await fetchAlbumIntro(a.title,a.artist,a.dzId);
-      if(r.intro){a.intro=r.intro;a.srcName=r.srcName;a.srcUrl=r.srcUrl;got++}
-      if(r.info)a.info=r.info;if(r.dzId)a.dzId=r.dzId;
-    }catch(e){}
-    if(i%5===4)save();
-    await sleep(250);
-  }
-  ibBusy=false;save();render();$('#intro-bulk').textContent='소개 일괄 불러오기';
-  st.textContent=`완료: ${got}개 앨범의 소개를 찾았어요${ibStop?' (중단됨)':''}.`;toast(st.textContent);
-};
 })();
 </script>
 <script>
