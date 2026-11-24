@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AFTERTONE</title>
+<meta name="theme-color" content="#fafaf9" id="meta-theme">
+<script>try{if(localStorage.getItem('aftertone_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <style>
 /* ===== base 1 ===== */
 :root{--bg:#fff;--fg:#111;--muted:#777;--line:#e8e8e8;--soft:#f5f5f4}
@@ -372,14 +374,6 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 #album-grid.dense .album-info{padding:5px;gap:1px}
 #album-grid.dense .album-info strong{font-size:10px;-webkit-line-clamp:3}
 #album-grid.dense .album-info span{font-size:9px;-webkit-line-clamp:1}
-#pick-album-modal .modal{width:min(440px,100%)}
-.pa-top{display:flex;gap:16px;align-items:flex-end;margin-bottom:14px}
-.pa-cover{width:150px;aspect-ratio:1;flex:none;border-radius:10px;overflow:hidden;background:#0000000f;box-shadow:0 10px 30px -12px #0006}
-.pa-cover>*{width:100%;height:100%;object-fit:cover;display:block}
-.pa-meta{display:flex;flex-direction:column;gap:4px;min-width:0}.pa-meta strong{font-size:18px;line-height:1.25;letter-spacing:-.02em}.pa-meta span{font-size:14px;opacity:.7}.pa-meta small{font-size:12px;opacity:.5}
-.pa-note{font-size:13px;opacity:.7;margin:0 0 12px}
-#pa-tracks .trk.on span{font-weight:700}
-.pa-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
 .ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 10px}
 .ha-item{position:relative;display:flex;flex-direction:column;gap:2px;text-align:left;border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer;min-width:0}
 .ha-cv{display:block;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#0000000f}.ha-cv>*{width:100%;height:100%;object-fit:cover;display:block}
@@ -391,6 +385,43 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 @media(max-width:700px){.ha-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .plp-list{max-height:210px;overflow:auto;border:1px solid var(--line,#e5e5e5);border-radius:10px;padding:4px 10px}
 .plp-row{display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;cursor:pointer}.plp-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plp-row em{font-style:normal;font-size:12px;opacity:.55}.plp-row input{accent-color:#111}
+
+/* ===== dark mode (html[data-theme="dark"]) — 기본은 화이트, 아래는 다크일 때만 적용 ===== */
+html[data-theme="dark"]{color-scheme:dark;--bg:#121212;--fg:#ececea;--muted:#9a9a96;--line:#2e2e2c;--soft:#1f1f1e}
+html[data-theme="dark"] header{background:rgba(18,18,18,.82)}
+html[data-theme="dark"] .mini{background:rgba(18,18,18,.86)}
+html[data-theme="dark"] ::selection{background:var(--fg);color:var(--bg)}
+/* 흰색이던 면 */
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea,
+html[data-theme="dark"] .modal,html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,
+html[data-theme="dark"] .pl-card,html[data-theme="dark"] .wc-card,html[data-theme="dark"] .modal-head,
+html[data-theme="dark"] .modal-actions,html[data-theme="dark"] .rec-play,
+html[data-theme="dark"] .seg button.on,html[data-theme="dark"] .api-result-actions button.on{background:#1a1a19}
+html[data-theme="dark"] .random-art{background:#262625}
+html[data-theme="dark"] .album-card .cover{background:linear-gradient(135deg,#242423,#1a1a19)}
+/* 테두리·보조 글자색 */
+html[data-theme="dark"] .rec-play,html[data-theme="dark"] .empty,html[data-theme="dark"] .tag-cloud span{border-color:#3a3a38}
+html[data-theme="dark"] .btn.secondary:not(.active):not(:hover){border-color:#3a3a38}
+html[data-theme="dark"] .placeholder,html[data-theme="dark"] .pl-empty{color:#555}
+html[data-theme="dark"] .about p,html[data-theme="dark"] .ana-chips span{color:#c8c8c5}
+/* 배경이 --fg(밝은색)로 바뀌므로 그 위의 글자는 어둡게 */
+html[data-theme="dark"] .btn:not(.secondary):not(.ghost):not(.danger),
+html[data-theme="dark"] .btn.secondary.active,html[data-theme="dark"] .btn.fav-on,
+html[data-theme="dark"] .api-result-actions button:not(.on),html[data-theme="dark"] .rec-addbar,
+html[data-theme="dark"] .toast,html[data-theme="dark"] .mini button,html[data-theme="dark"] .pl-float,
+html[data-theme="dark"] .wc-badge,html[data-theme="dark"] .selbar{color:#111}
+html[data-theme="dark"] .rec-addbar button,html[data-theme="dark"] .toast button,
+html[data-theme="dark"] .selbar button:not(.del){background:#111;color:var(--fg)}
+html[data-theme="dark"] .mini #mini-close{background:none;color:#999}
+/* 선택 표시·구분선 */
+html[data-theme="dark"] .ha-item.on .ha-cv{outline-color:var(--fg)}
+html[data-theme="dark"] .ha-item.on .ha-cv::after{background:var(--fg);color:var(--bg)}
+html[data-theme="dark"] #album-grid .album-card.picked::after{box-shadow:inset 0 0 0 3px var(--fg)}
+html[data-theme="dark"] .album-drop-line{background:var(--fg);box-shadow:0 0 0 1.5px var(--bg)}
+html[data-theme="dark"] .albsz input,html[data-theme="dark"] .plp-row input,html[data-theme="dark"] .xd-chk{accent-color:var(--fg)}
+/* 설정 탭의 화면 모드 */
+.theme-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.theme-row h2{margin:0;font-size:14px}.theme-row .seg button{padding:3px 10px;font-size:12px}
 </style>
 <!-- AFTERTONE 갤러리 테마: </head> 바로 앞에 통째로 붙여 넣으세요. 지우면 원래대로 돌아가요. -->
 </head>
@@ -412,7 +443,7 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 </section>
 
 <section class="page" id="page-albums">
-  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="album-pick">오늘의 앨범</button><button class="btn secondary" id="album-hidden-btn">숨긴 앨범 (0)</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
+  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="album-hidden-btn">숨긴 앨범 (0)</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album">앨범 추가</button></div></div>
   <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="recent" selected>최근 추가순</option><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도 최신순</option><option value="year-asc">발매연도 오래된 순</option><option value="artist">아티스트순</option><option value="random">랜덤순</option></select><label class="albsz"><span id="album-cols-n"></span><input type="range" id="album-cols" min="2" max="12" step="1" aria-label="한 줄에 보이는 앨범 수"></label></div>
   <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
@@ -432,6 +463,7 @@ body.album-dragging,body.album-dragging *{cursor:grabbing!important;-webkit-user
 </section>
 
 <section class="page about" id="page-about">
+  <div class="theme-row" id="theme-box"><h2>화면 모드</h2><div class="seg" id="theme-seg" role="group" aria-label="화면 모드"><button type="button" data-theme-set="light">화이트</button><button type="button" data-theme-set="dark">다크</button></div></div>
   <div class="backup" id="uid-box"><h2>내 고유 ID</h2><div id="uid-body"></div></div>
   <div class="backup" id="blocked-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">추천 차단한 곡 <span class="taste-text" id="blocked-count" style="font-size:13px"></span></h2><div style="display:flex;gap:4px"><button class="btn ghost small" id="blocked-clear" style="display:none">모두 해제</button><button class="btn ghost small" id="blocked-toggle" aria-expanded="false">펼치기</button></div></div><div id="blocked-body" style="display:none"><div class="song-list" id="blocked-list"></div></div></div>
   <div class="backup" id="skipped-box"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2 style="margin:0">제외된 곡 <span class="taste-text" id="skipped-count" style="font-size:13px"></span></h2><div style="display:flex;gap:4px"><button class="btn ghost small" id="skipped-clear" style="display:none">비우기</button><button class="btn ghost small" id="skipped-toggle" aria-expanded="false">펼치기</button></div></div><p class="taste-text" style="font-size:13px;margin:8px 0 0">플레이리스트를 가져올 때 미리듣기가 없어 빠진 곡이에요. '다시 검색'을 누르면 곡 정보와 미리듣기를 다시 찾아서 추가해요.</p><div id="skipped-body" style="display:none"><div class="song-list" id="skipped-list"></div></div></div>
@@ -611,7 +643,7 @@ function albumTap(el,id){
 }
 document.addEventListener('click',e=>{if(!e.target.closest('.album-card'))document.querySelectorAll('#album-grid .album-card.show').forEach(x=>x.classList.remove('show'))});
 {const _ra=renderAlbums;renderAlbums=function(){_ra();albumBarUI()}}
-document.body.insertAdjacentHTML('beforeend','<div class="selbar" id="albar"><span id="alb-count"></span><button id="alb-all">전체 선택</button><button id="alb-hide">가리기</button><button id="alb-del" class="del">삭제</button><button id="alb-done">완료</button></div>');
+document.body.insertAdjacentHTML('beforeend','<div class="selbar" id="albar"><span id="alb-count"></span><button id="alb-all">전체 선택</button><button id="alb-hide">숨기기</button><button id="alb-del" class="del">삭제</button><button id="alb-done">완료</button></div>');
 function setAlbumSel(on){albumSelMode=on;if(!on)albumSel.clear();renderAlbums()}
 $('#album-sel-toggle').onclick=()=>setAlbumSel(!albumSelMode);
 $('#alb-done').onclick=()=>setAlbumSel(false);
@@ -690,53 +722,8 @@ function dedupeAlbums(){
   addEventListener('resize',auto);
 })();
 
-// ===== 앨범: 오늘의 앨범 뽑기 (랜덤 앨범 하나를 보여주고 수록곡 미리듣기를 이어서 재생) =====
-document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="pick-album-modal"><div class="modal"><div class="modal-head"><h2>오늘의 앨범</h2><button class="close" id="pa-close" type="button">×</button></div><div id="pa-body"></div></div></div>');
-(()=>{
-  const md=document.getElementById('pick-album-modal'),body=document.getElementById('pa-body');
-  let last=null,albQ=[],curA=null;
-  const tracksOf=a=>songs.filter(s=>s.album&&albT(s.album)===albT(a.title)&&albA(s.artist)===albA(a.artist));
-  const isOn=id=>playingId===id&&!player.paused;
-  function rows(){
-    const box=document.getElementById('pa-tracks');if(!box||!curA)return;
-    const tr=tracksOf(curA);
-    box.innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk${isOn(s.id)?' on':''}"><span>${esc(s.title)}</span>${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">${isOn(s.id)?'❚❚':'▶'}</button>`:''}</div>`).join('')
-      :'<p class="taste-text" style="margin:0">이 앨범으로 등록된 노래가 없어요.</p>';
-  }
-  function playFirst(){
-    if(!albQ.length)return;
-    if(playingId===albQ[0]){player.currentTime=0;player.play().catch(()=>{})}else playSong(albQ[0]);
-  }
-  function show(a){
-    curA=a;last=a.id;
-    const pv=tracksOf(a).filter(s=>s.preview);albQ=pv.map(s=>s.id);
-    body.innerHTML=`<div class="pa-top"><div class="pa-cover">${cover(a.cover)}</div><div class="pa-meta"><strong>${esc(a.title)}</strong><span>${esc(a.artist)}</span><small>${[a.year,a.genre].filter(Boolean).map(esc).join(' · ')}</small></div></div>`
-      +(a.note?`<p class="pa-note">“${esc(a.note)}”</p>`:'')
-      +'<div id="pa-tracks"></div>'
-      +(pv.length?'':'<p class="taste-text" style="margin:10px 0 0">미리듣기가 있는 수록곡이 없어요.</p>')
-      +`<div class="pa-actions"><button class="btn secondary" type="button" id="pa-again">다시 뽑기</button>${pv.length?'<button class="btn" type="button" id="pa-play">처음부터 듣기</button>':''}</div>`;
-    rows();md.classList.add('open');
-    document.getElementById('pa-again').onclick=pick;
-    const pb=document.getElementById('pa-play');if(pb)pb.onclick=playFirst;
-    playFirst();
-  }
-  function pick(){
-    const shown=albums.filter(a=>!a.hidden);if(!shown.length){toast('앨범이 없어요. 먼저 앨범을 추가해 보세요.');return}
-    let pool=shown.filter(a=>tracksOf(a).some(s=>s.preview));if(!pool.length)pool=shown.slice();  // 들을 수 있는 앨범을 먼저
-    if(pool.length>1)pool=pool.filter(a=>a.id!==last);
-    show(pool[Math.floor(Math.random()*pool.length)]);
-  }
-  document.getElementById('album-pick').onclick=pick;
-  document.getElementById('pa-close').onclick=()=>closeModals();
-  md.addEventListener('click',e=>{if(e.target===md)closeModals()});
-  setTimeout(()=>{ // player는 아래쪽에서 만들어지니 스크립트가 다 읽힌 뒤에 연결해요
-    player.addEventListener('ended',()=>{const i=albQ.indexOf(playingId);if(i>=0&&i<albQ.length-1)playSong(albQ[i+1])});
-    ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{if(md.classList.contains('open'))rows()}));
-  },0);
-})();
-
-// ===== 앨범: 가리기 / 숨긴 앨범 보기 (삭제하지 않고 목록에서만 숨겨요) =====
-document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hidden-albums-modal"><div class="modal"><div class="modal-head"><h2>숨긴 앨범</h2><button class="close" id="ha-close" type="button">×</button></div><p class="taste-text" style="margin:0 0 12px;font-size:13px">앨범을 눌러 고른 뒤 \'다시 보이기\'를 누르면 앨범 목록으로 돌아가요.</p><div id="ha-grid"></div><div class="pa-actions" id="ha-actions"><button class="btn secondary" type="button" id="ha-all">전체 선택</button><button class="btn danger" type="button" id="ha-del">삭제</button><button class="btn" type="button" id="ha-show">다시 보이기</button></div></div></div>');
+// ===== 앨범: 숨기기 / 숨긴 앨범 보기 (삭제하지 않고 목록에서만 숨겨요) =====
+document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hidden-albums-modal"><div class="modal"><div class="modal-head"><h2>숨긴 앨범</h2><button class="close" id="ha-close" type="button">×</button></div><div id="ha-grid"></div><div class="pa-actions" id="ha-actions"><button class="btn secondary" type="button" id="ha-all">전체 선택</button><button class="btn danger" type="button" id="ha-del">삭제</button><button class="btn" type="button" id="ha-show">다시 표시하기</button></div></div></div>');
 (()=>{
   const md=document.getElementById('hidden-albums-modal'),grid=document.getElementById('ha-grid'),btn=document.getElementById('album-hidden-btn');
   const sel=new Set(),hid=()=>albums.filter(a=>a.hidden);
@@ -745,20 +732,20 @@ document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hi
     if(btn)btn.textContent=`숨긴 앨범 (${list.length})`;
     if(!md.classList.contains('open'))return;
     grid.innerHTML=list.length?`<div class="ha-grid">${list.map(a=>`<button type="button" class="ha-item${sel.has(a.id)?' on':''}" data-id="${esc(a.id)}" aria-pressed="${sel.has(a.id)}"><span class="ha-cv">${cover(a.cover)}</span><b>${esc(a.title)}</b><small>${esc(a.artist)}</small></button>`).join('')}</div>`
-      :'<div class="empty"><b>숨긴 앨범이 없어요</b>앨범 목록에서 \'선택\' 후 \'가리기\'를 누르면 여기로 와요.</div>';
+      :'<div class="empty"><b>숨긴 앨범이 없어요</b>앨범 목록에서 \'선택\' 후 \'숨기기\'를 누르면 여기로 와요.</div>';
     document.getElementById('ha-actions').style.display=list.length?'':'none';
-    document.getElementById('ha-show').textContent=sel.size?`다시 보이기 (${sel.size})`:'다시 보이기';
+    document.getElementById('ha-show').textContent=sel.size?`다시 표시하기 (${sel.size})`:'다시 표시하기';
     document.getElementById('ha-del').textContent=sel.size?`삭제 (${sel.size})`:'삭제';
     document.getElementById('ha-all').textContent=list.length&&sel.size===list.length?'선택 해제':'전체 선택';
   }
-  // 앨범 목록에서: 선택 모드의 '가리기'
+  // 앨범 목록에서: 선택 모드의 '숨기기'
   document.getElementById('alb-hide').onclick=()=>{
     const vis=new Set(albumVisibleIds()),ids=[...albumSel].filter(i=>vis.has(i));
     if(!ids.length){toast('앨범을 먼저 선택해 주세요.');return}
     const bk=albums.map(a=>({...a}));
     albums.forEach(a=>{if(ids.includes(a.id))a.hidden=true});ids.forEach(i=>albumSel.delete(i));
     save();render();
-    undoToast(`${ids.length}개 앨범을 가렸어요.`,()=>{albums=bk;save();render()});
+    undoToast(`${ids.length}개 앨범을 숨겼어요.`,()=>{albums=bk;save();render()});
   };
   if(btn)btn.onclick=()=>{sel.clear();md.classList.add('open');paint()};
   document.getElementById('ha-close').onclick=()=>closeModals();
@@ -766,11 +753,11 @@ document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hi
     const it=e.target.closest('.ha-item');if(!it)return;const id=it.dataset.id;sel.has(id)?sel.delete(id):sel.add(id);paint()});
   document.getElementById('ha-all').onclick=()=>{const l=hid();if(l.length&&sel.size===l.length)sel.clear();else l.forEach(a=>sel.add(a.id));paint()};
   document.getElementById('ha-show').onclick=()=>{
-    if(!sel.size){toast('다시 보일 앨범을 먼저 골라 주세요.');return}
+    if(!sel.size){toast('다시 표시할 앨범을 먼저 골라 주세요.');return}
     const ids=[...sel],bk=albums.map(a=>({...a}));
     albums.forEach(a=>{if(ids.includes(a.id))delete a.hidden});sel.clear();
     save();render();paint();
-    undoToast(`${ids.length}개 앨범을 다시 보이게 했어요.`,()=>{albums=bk;save();render();paint()});
+    undoToast(`${ids.length}개 앨범을 다시 표시했어요.`,()=>{albums=bk;save();render();paint()});
   };
   document.getElementById('ha-del').onclick=()=>{
     if(!sel.size){toast('삭제할 앨범을 먼저 골라 주세요.');return}
@@ -3383,6 +3370,21 @@ show(null);
     player.src=u;player.play().catch(()=>toast('미리듣기를 재생할 수 없어요.'));
   });
   document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{queue=[]}));
+})();
+
+// ===== 화면 모드 (화이트 기본 / 다크) =====
+(()=>{
+  const KEY='aftertone_theme',PAL={light:['#111','#444','#777','#999','#bbb','#d3d3d3','#e6e6e6'],dark:['#f2f2f0','#cfcfcb','#a8a8a4','#85857f','#66665f','#4d4d48','#3a3a36']};
+  const get=()=>{try{return localStorage.getItem(KEY)==='dark'?'dark':'light'}catch(e){return 'light'}};
+  function apply(m,redraw){
+    document.documentElement.dataset.theme=m;
+    SHADES.splice(0,SHADES.length,...PAL[m]); // 도넛 차트 색
+    document.querySelectorAll('[data-theme-set]').forEach(b=>{const on=b.dataset.themeSet===m;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+    const mt=document.getElementById('meta-theme');if(mt)mt.content=m==='dark'?'#121212':'#fafaf9';
+    if(redraw&&document.querySelector('#page-taste.active')){try{renderCharts()}catch(e){}}
+  }
+  document.querySelectorAll('[data-theme-set]').forEach(b=>b.addEventListener('click',()=>{const m=b.dataset.themeSet;try{localStorage.setItem(KEY,m)}catch(e){}apply(m,true)}));
+  apply(get(),false);
 })();
 </script>
 </body>
