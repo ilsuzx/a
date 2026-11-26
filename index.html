@@ -3646,6 +3646,102 @@ show(null);
   drawU();
   ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>{drawU();if(W&&W.view==='match'&&!W.loading)wcView()}));
   // 월드컵·플리에서 재생이 실패하면(저장해 둔 미리듣기 주소 만료) 새 주소를 찾아 교체하고, 보관함 곡에도 반영해요
+  // ===== 장르별 추천 플리: 버튼을 누를 때만 만들어요 (새 추천곡 위주 + 내 곡 살짝) =====
+  const GP={sel:null,made:null,busy:false,saved:false};
+  const gh=document.createElement('div');gh.className='block';gh.id='gpl-block';
+  gh.innerHTML='<div class="head" style="margin-bottom:8px"><h2>장르별 추천 플리</h2><div style="display:flex;gap:8px"><button class="btn small" id="gpl-make">플리 만들기</button></div></div><p class="taste-text" style="margin:0 0 12px">장르를 고르고 버튼을 누르면 그때 만들어요. 새로 추천하는 곡 사이에 내가 담아 둔 곡이 살짝 섞여요.</p><div id="gpl-genres" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div><div id="gpl-result" class="pl-grid"></div>';
+  $('#page-playlist').append(gh);
+  function gplGenres(){
+    const box=$('#gpl-genres');if(!box)return;
+    let list=[];try{list=[...subCompute().agg.values()].sort((a,b)=>b.v-a.v).slice(0,10)}catch(e){}
+    if(!list.length){box.innerHTML='<p class="taste-text" style="margin:0;font-size:13px">세부 장르 분석이 끝나면 고를 수 있어요. 취향 탭에서 분석이 끝날 때까지 기다린 뒤 다시 열어 주세요.</p>';return}
+    if(GP.sel&&!list.some(x=>x.k===GP.sel.k))GP.sel=null;
+    box.innerHTML=list.map(x=>`<button type="button" class="btn secondary small${GP.sel&&GP.sel.k===x.k?' active':''}" data-gk="${esc(x.k)}" data-gl="${esc(x.l)}">${esc(x.l)}</button>`).join('');
+  }
+  AT.gplRefresh=gplGenres;
+  $('#gpl-genres').addEventListener('click',e=>{
+    const b=e.target.closest('[data-gk]');if(!b)return;
+    GP.sel={k:b.dataset.gk,l:b.dataset.gl};gplGenres();
+  });
+  function drawG(){
+    const box=$('#gpl-result'),m=GP.made;if(!box||!m)return;
+    const q=m.items.filter(s=>s.preview).map(iid),playing=q.includes(playingId)&&!player.paused;
+    box.innerHTML=`<div class="pl-card">
+      <div class="pl-top">${mosaic(m.items)}<div class="pl-info"><strong>${esc(m.name)}</strong><span>${m.items.length}곡${m.mine?` (추천 ${m.items.length-m.mine} + 내 곡 ${m.mine})`:''}</span></div></div>
+      <div class="pl-actions"><button class="btn small" data-ga="play">${playing?I.stop+' 정지':I.play+' 재생'}</button><button class="btn ghost small" data-ga="copy">복사</button><button class="btn ghost small" data-ga="save"${GP.saved?' disabled':''}>${GP.saved?'저장됨':'플리로 저장'}</button></div>
+      <div class="pl-list">${m.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.lib?'<b class="pl-ext">내 곡</b>':'<b class="pl-ext">추천</b>'}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-gadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-gsong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>
+    </div>`;
+  }
+  async function gplMake(){
+    if(GP.busy)return;
+    const g=GP.sel;if(!g){toast('장르를 먼저 골라 주세요.');return}
+    if(songs.length<3){toast('곡이 3곡 이상 있어야 플리를 만들 수 있어요.');return}
+    GP.busy=true;GP.made=null;GP.saved=false;
+    const btn=$('#gpl-make'),res=$('#gpl-result');btn.disabled=true;btn.textContent='찾는 중…';
+    res.innerHTML='<p class="taste-text">'+esc(g.l)+' 장르에서 취향에 맞는 곡을 찾고 있어요. 10~20초 정도 걸려요…</p>';
+    stopPlayer();queue=[];
+    try{
+      const r=subCompute(),seeds=songs.filter(s=>{const t=r.st.get(s.id);return t&&t.has(g.k)});
+      const lib=new Set(songs.map(skey)),cand=new Map();
+      const add=(c,w,src)=>{
+        if(!c||!c.title||!c.artist)return;const k=skey(c);if(lib.has(k))return;
+        const e=cand.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0,from:new Set()};
+        if(e.from.has(src))return; // 같은 출처에서 중복으로 세지 않아요
+        e.sum+=w;e.hits++;e.from.add(src);cand.set(k,e);
+      };
+      const tags=[...new Set([g.l,g.l.replace(/^k-/,'korean '),g.l.replace(/^k-/,'k ')])];
+      const pick=seeds.map(s=>[Math.pow(Math.random(),1/recW(s)),s]).sort((a,b)=>b[0]-a[0]).slice(0,6).map(x=>x[1]);
+      // 1) 이 장르 태그의 인기곡  2) 이 장르로 담아 둔 곡과 비슷한 곡 — 둘 다에 걸리면 점수가 올라가요
+      await Promise.all([
+        ...tags.map(async t=>{try{const d=await lfm('tag.getTopTracks',{tag:t,limit:'60'});arr(d&&d.tracks&&d.tracks.track).forEach((x,i)=>add({title:x.name,artist:x.artist&&x.artist.name},0.5*(1-i/70),'#tag'))}catch(e){}}),
+        ...pick.map(async s=>{try{(await getSimilar(s.artist,s.title,30)).forEach(c=>add(c,c.match||0.3,s.title))}catch(e){}})
+      ]);
+      let list=recFilterHook([...cand.values()]);
+      const no=new Set(disliked.map(x=>x.k));list=list.filter(c=>!no.has(skey(c)));
+      list.forEach(c=>{c.score=c.sum*(1+0.6*(c.hits-1))+Math.random()*0.12});
+      list.sort((a,b)=>b.score-a.score);
+      const withPrev=seeds.filter(s=>s.preview),libN=Math.min(2,withPrev.length),need=10-libN; // 내 곡은 최대 2곡만
+      const per={},picked=[];
+      for(let k=0;k<Math.min(list.length,60)&&picked.length<need;k+=4){
+        const batch=list.slice(k,k+4).filter(x=>(per[recNorm(x.artist)]||0)<2);
+        const rs=await Promise.all(batch.map(enrich));
+        rs.forEach(it=>{
+          if(!it||picked.length>=need)return;
+          const a=recNorm(it.artist);if((per[a]||0)>=2)return;
+          per[a]=(per[a]||0)+1;picked.push(it);
+        });
+        btn.textContent=`곡 확인 중 ${picked.length}/${need}`;
+      }
+      if(picked.length<3){res.innerHTML='<div class="empty"><b>곡을 충분히 찾지 못했어요</b>잠시 후 다시 시도하거나 다른 장르를 골라 보세요.</div>';return}
+      const mine=withPrev.map(s=>[Math.pow(Math.random(),1/recW(s)),s]).sort((a,b)=>b[0]-a[0]).slice(0,libN).map(x=>libItem(x[1])).filter(Boolean);
+      GP.made={name:g.l+' 추천 플리',items:weave(picked,mine),mine:mine.length};
+    }catch(e){res.innerHTML='<div class="api-hint">플리를 만들지 못했어요. 잠시 후 다시 시도해 주세요.</div>'}
+    finally{GP.busy=false;btn.disabled=false;btn.textContent='다시 만들기';drawG()}
+  }
+  $('#gpl-make').onclick=gplMake;
+  $('#gpl-result').addEventListener('click',e=>{
+    const m=GP.made;if(!m)return;
+    const sb=e.target.closest('[data-gsong]');if(sb){queue=[];playSong(sb.dataset.gsong);return}
+    const ab=e.target.closest('[data-gadd]');if(ab){const it=m.items[Number(ab.dataset.gadd)];if(it)addRecommended(it);return}
+    const b=e.target.closest('[data-ga]');if(!b)return;
+    const a=b.dataset.ga;
+    if(a==='play'){
+      const q=m.items.filter(s=>s.preview).map(iid);if(!q.length)return;
+      if(queue.includes(playingId)&&!player.paused&&q.includes(playingId)){stopPlayer();queue=[];drawG();return}
+      queue=q;if(playingId===q[0])stopPlayer();playSong(q[0]);
+    }else if(a==='copy'){
+      const text=m.name+'\n'+m.items.map((s,j)=>`${j+1}. ${s.title} - ${s.artist}`).join('\n');
+      const ok=()=>toast('플레이리스트 목록을 복사했어요.');
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,()=>toast('복사하지 못했어요.'));
+      else{const t=document.createElement('textarea');t.value=text;document.body.append(t);t.select();try{document.execCommand('copy');ok()}catch(_){toast('복사하지 못했어요.')}t.remove()}
+    }else if(a==='save'){
+      if(GP.saved)return;
+      const items=m.items.map(cleanItem);items.forEach(regItem);
+      userPl.unshift({id:'g'+Date.now().toString(36),name:m.name,seed:null,size:items.length,useLib:false,done:true,created:Date.now(),items});
+      saveU();drawU();GP.saved=true;drawG();toast('저장했어요. 플리 월드컵 페이지의 목록에서 볼 수 있어요.');
+    }
+  });
+  ['play','pause','ended'].forEach(ev=>player.addEventListener(ev,()=>drawG()));
   const extTried=new Set();
   player.addEventListener('error',async()=>{
     const id=playingId;if(!id||!String(id).startsWith('ext:'))return;
@@ -3730,6 +3826,9 @@ show(null);
 @media(max-width:700px){#top-artists{flex-basis:100%;max-width:none;margin-top:8px}}
 #xd-list{overflow-x:hidden!important}
 #xd-list .song-row{margin:0;padding-left:0;padding-right:0}
+#page-gpl h1{margin-bottom:16px}
+#page-gpl .block>.head>h2{display:none}
+#page-gpl .block>.head{justify-content:flex-end}
 #page-wcup h1,#page-autopl h1{margin-bottom:16px}
 #page-wcup .block>.head>h2,#page-autopl .block>.head>h2{display:none}
 #page-wcup .block>.head,#page-autopl .block>.head{justify-content:flex-end}
@@ -3752,12 +3851,13 @@ const make=(key,block,title,desc,onOpen)=>{
 make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 노래를 골라 드려요',()=>{$('#rec-body').style.display=''});
 $('#top-artists').addEventListener('click',e=>{const it=e.target.closest('.bar-item');if(!it)return;const n=it.querySelector('.bar-label span').textContent;if(n&&AT.openDetail)AT.openDetail('artist',n,n)});
 make('cf',$('#cf-block'),'다른 사용자들이 좋아한 곡','취향이 비슷한 사용자들이 담은 곡을 볼 수 있어요');
+make('gpl',$('#gpl-block'),'장르별 추천 플리','장르를 고르고 버튼을 누르면 그때 취향에 맞춰 플리를 만들어요',()=>AT.gplRefresh&&AT.gplRefresh());
 make('wcup',$('#upl-block'),'플리 월드컵','대표곡을 고르고 비슷한 곡을 2곡씩 비교하며 플리를 만들어요');
 make('autopl',$('#pl-block'),'자동 플레이리스트','내 곡을 비슷한 것끼리 묶어 플레이리스트를 만들어요');
 // 블록을 모두 옮겼으니 빈 '플리' 페이지는 지워요
 {const old=document.getElementById('page-playlist');if(old)old.remove()}
 // 플리 페이지에서 뒤로 가면 재생 중인 곡도 멈춰요
-['wcup','autopl'].forEach(k=>{const b=$('#'+k+'-back');if(b){const f=b.onclick;b.onclick=()=>{try{stopPlayer()}catch(e){}f()}}});
+['gpl','wcup','autopl'].forEach(k=>{const b=$('#'+k+'-back');if(b){const f=b.onclick;b.onclick=()=>{try{stopPlayer()}catch(e){}f()}}});
 })();
 </script>
 </body>
