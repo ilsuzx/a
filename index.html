@@ -117,7 +117,7 @@ input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px #00000010}
 .album-card h3{margin:16px 0 3px;font-size:15px;font-weight:700;letter-spacing:-.025em}
 .album-card p{font-size:13px}
 .placeholder{font-size:34px;color:#c9c9c5}
-/* 노래 목록: 큰 커버 */
+/* 음악 목록: 큰 커버 */
 .song-list{border-top:0}
 .song-row{gap:18px;padding:14px 8px;margin:0 -8px;border-bottom:1px solid var(--line);border-radius:8px;transition:background .2s}
 .song-row:hover{background:var(--soft)}
@@ -169,7 +169,7 @@ h1{font-size:30px}
 .ana-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
 .ana-chips span{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--soft);color:#444}
 .ana-note{margin:10px 0 0;color:var(--muted);font-size:12px}
-/* 노래·앨범 추가 창을 달력의 기록 추가 창과 같은 스타일로 */
+/* 음악·앨범 추가 창을 달력의 기록 추가 창과 같은 스타일로 */
 #song-modal .seg,#album-modal .seg{display:inline-flex;margin-bottom:12px}
 #song-modal .api-search,#album-modal .api-search{background:none;padding:0;margin-bottom:16px}
 #song-modal .api-search-head strong,#album-modal .api-search-head strong,#song-modal .api-search-head{display:none}
@@ -627,12 +627,12 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 <header>
   <div class="brand">AFTERTONE</div>
   <nav class="nav">
-    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="about">설정</button>
+    <button class="active" data-page="songs">음악</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="about">설정</button>
   </nav>
 </header>
 
 <section class="page active" id="page-songs">
-  <div class="head"><h1>노래</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="import-pl">플리 가져오기</button><button class="btn" id="add-song"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>노래 추가</button></div></div>
+  <div class="head"><h1>음악</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="import-pl">플리 가져오기</button><button class="btn" id="add-song"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>음악 추가</button></div></div>
   <div class="toolbar"><input class="search" id="song-search" placeholder="곡명 또는 아티스트 검색"><div class="seg" id="song-scope" role="group" aria-label="검색 기준"><button type="button" data-scope="all" class="on">전체</button><button type="button" data-scope="title">곡명</button><button type="button" data-scope="artist">아티스트명</button></div></div>
   <div class="fbar"><select id="genre-filter"></select><select id="artist-filter"></select><select id="year-filter"></select><select id="song-sort"><option value="new">최근 추가순</option><option value="title">제목순</option><option value="artist">아티스트순</option><option value="year">연도순</option></select><button type="button" class="btn ghost small" id="filter-reset" hidden>초기화</button></div>
   <div class="count" id="song-count"></div>
@@ -668,7 +668,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 </section>
 </div>
 
-<div class="modal-backdrop" id="song-modal"><div class="modal"><div class="modal-head"><h2 id="song-modal-title">노래 추가</h2><button class="close" data-close><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><form id="song-form"><input type="hidden" id="song-id"><input type="hidden" id="f-preview">
+<div class="modal-backdrop" id="song-modal"><div class="modal"><div class="modal-head"><h2 id="song-modal-title">음악 추가</h2><button class="close" data-close><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><form id="song-form"><input type="hidden" id="song-id"><input type="hidden" id="f-preview">
 <div class="api-search"><div class="api-search-head"><strong>음악 검색</strong><small>검색 기준을 고르고 입력하세요. 기본은 통합 검색이에요.</small></div>
 <div class="seg" id="api-song-scope" role="group" aria-label="검색 기준"><button type="button" data-sscope="all" class="on">곡</button></div>
 <div class="api-search-line"><input id="api-song-query" placeholder="곡명 또는 아티스트 검색"><button type="button" class="btn small" id="api-song-search">검색</button></div>
@@ -684,7 +684,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 <div class="modal-actions"><button type="button" class="btn secondary" id="queue-skip" style="display:none">건너뛰기</button><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
 <div class="modal-backdrop" id="album-modal"><div class="modal"><div class="modal-head"><h2 id="album-modal-title">앨범 추가</h2><button class="close" data-close><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><form id="album-form"><input type="hidden" id="album-id">
-<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'을 누르면 수록곡 전체가 노래로 한 번에 추가돼요.</small></div>
+<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'을 누르면 수록곡 전체가 음악으로 한 번에 추가돼요.</small></div>
 <div class="api-search-line"><input id="api-album-query" placeholder="앨범명 또는 아티스트"><button type="button" class="btn small" id="api-album-search">검색</button></div>
 <div class="api-results" id="api-album-results"></div></div>
 <div class="form-grid">
@@ -741,7 +741,7 @@ const I={
  note:_s('<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>')
 };
 const read=(k,fb)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??fb}catch{return fb}};
-const DEFAULT_PROFILE='AFTERTONE은 내가 좋아하는 음악을 모으고, 그 안에서 나만의 취향을 발견하기 위해 만든 개인 음악 아카이브입니다. 노래 한 곡과 앨범 한 장에 담긴 기억과 감정을 차곡차곡 기록합니다.';
+const DEFAULT_PROFILE='AFTERTONE은 내가 좋아하는 음악을 모으고, 그 안에서 나만의 취향을 발견하기 위해 만든 개인 음악 아카이브입니다. 음악 한 곡과 앨범 한 장에 담긴 기억과 감정을 차곡차곡 기록합니다.';
 let songs=read('aftertone_songs',[]),albums=read('aftertone_albums',[]),manualTags=read('aftertone_tags',[]),profile=read('aftertone_profile',DEFAULT_PROFILE),randomKind='song',skipped=read('aftertone_skipped',[]),blocked=read('aftertone_blocked',[]);
 songs.forEach(s=>{delete s.fav});
 let daily=read('aftertone_daily',{});
@@ -800,9 +800,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModals()});
 document.addEventListener('play',e=>{if(e.target.tagName==='AUDIO')document.querySelectorAll('audio').forEach(a=>{if(a!==e.target)a.pause()})},true);
 
 const resetSearch=(sel,msg)=>{$(sel).innerHTML=`<div class="api-hint intro">${msg}</div>`};
-$('#add-song').onclick=()=>{$('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';$('#api-song-query').value='';setSongScope('all');resetSearch('#api-song-results','검색 결과를 선택하면 곡 정보와 앨범 커버가 자동으로 입력됩니다.');$('#song-modal-title').textContent='노래 추가';openModal('song-modal')};
+$('#add-song').onclick=()=>{$('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';$('#api-song-query').value='';setSongScope('all');resetSearch('#api-song-results','검색 결과를 선택하면 곡 정보와 앨범 커버가 자동으로 입력됩니다.');$('#song-modal-title').textContent='음악 추가';openModal('song-modal')};
 $('#add-album').onclick=()=>{$('#album-form').reset();$('#album-id').value='';$('#api-album-query').value='';resetSearch('#api-album-results','검색 결과에서 앨범을 선택해 주세요.');$('#album-delete').style.display='none';$('#album-tracks').innerHTML='';setIntroUI({});$('#album-modal-title').textContent='앨범 추가';openModal('album-modal')};
-function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-form').reset();$('#song-id').value=id;$('#f-preview').value=s.preview||'';['title','artist','album','year','genre','sound','cover'].forEach(k=>$('#f-'+k).value=s[k]||'');resetSearch('#api-song-results','검색 결과를 선택하면 정보가 다시 입력됩니다.');$('#song-modal-title').textContent='노래 수정';openModal('song-modal')}
+function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-form').reset();$('#song-id').value=id;$('#f-preview').value=s.preview||'';['title','artist','album','year','genre','sound','cover'].forEach(k=>$('#f-'+k).value=s[k]||'');resetSearch('#api-song-results','검색 결과를 선택하면 정보가 다시 입력됩니다.');$('#song-modal-title').textContent='음악 수정';openModal('song-modal')}
 function editAlbum(id){const a=albums.find(x=>x.id===id);if(!a)return;$('#album-form').reset();$('#album-id').value=id;['title','artist','year','genre','cover','note'].forEach(k=>$('#a-'+k).value=a[k]||'');resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 다시 입력됩니다.');$('#album-delete').style.display='';setIntroUI(a);const tr=songs.filter(s=>s.album&&s.album.toLowerCase()===a.title.toLowerCase()&&s.artist.toLowerCase()===a.artist.toLowerCase());$('#album-tracks').innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk"><span>${esc(s.title)}</span>${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">${I.play}</button>`:''}</div>`).join(''):'';$('#album-modal-title').textContent='앨범 수정';openModal('album-modal')}
 $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
   if(!id&&songs.some(x=>skey(x)===($('#f-title').value.trim()+'|'+$('#f-artist').value.trim()).toLowerCase())&&!confirm('이미 등록된 곡이에요. 그래도 추가할까요?'))return;
@@ -865,7 +865,7 @@ $('#alb-all').onclick=()=>{const ids=albumVisibleIds(),all=ids.length&&ids.every
 $('#alb-del').onclick=()=>{
   const vis=new Set(albumVisibleIds()),ids=[...albumSel].filter(i=>vis.has(i));
   if(!ids.length){toast('앨범을 먼저 선택해 주세요.');return}
-  if(!confirm(`선택한 ${ids.length}개 앨범을 삭제할까요?\n(앨범에 속한 노래는 그대로 남아요.)`))return;
+  if(!confirm(`선택한 ${ids.length}개 앨범을 삭제할까요?\n(앨범에 속한 음악은 그대로 남아요.)`))return;
   const bk=albums.slice();
   albums=albums.filter(a=>!ids.includes(a.id));ids.forEach(i=>albumSel.delete(i));
   save();render();
@@ -977,7 +977,7 @@ document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hi
   document.getElementById('ha-del').onclick=()=>{
     if(!sel.size){toast('삭제할 앨범을 먼저 골라 주세요.');return}
     const ids=[...sel];
-    if(!confirm(`선택한 ${ids.length}개 앨범을 삭제할까요?\n(앨범에 속한 노래는 그대로 남아요.)`))return;
+    if(!confirm(`선택한 ${ids.length}개 앨범을 삭제할까요?\n(앨범에 속한 음악은 그대로 남아요.)`))return;
     const bk=albums.map(a=>({...a}));
     albums=albums.filter(a=>!ids.includes(a.id));sel.clear();
     save();render();paint();
@@ -1087,8 +1087,8 @@ function renderSongs(){
   else if(so==='year')list.sort((a,b)=>(+b.year||0)-(+a.year||0));
   $('#song-count').textContent=`${list.length} / ${songs.length}곡`;
   $('#song-list').innerHTML=list.map(songRow).join('')||(songs.length
-    ?`<div class="empty">${I.note}<b>조건에 맞는 노래가 없어요</b>검색어나 필터를 바꿔 보세요.<button type="button" class="btn secondary small" data-empty="reset">필터 초기화</button></div>`
-    :`<div class="empty">${I.note}<b>노래가 없어요</b>좋아하는 노래를 하나씩 모아 보세요.<button type="button" class="btn" data-empty="add">${I.plus}노래 추가</button></div>`);
+    ?`<div class="empty">${I.note}<b>조건에 맞는 음악이 없어요</b>검색어나 필터를 바꿔 보세요.<button type="button" class="btn secondary small" data-empty="reset">필터 초기화</button></div>`
+    :`<div class="empty">${I.note}<b>음악이 없어요</b>좋아하는 음악을 하나씩 모아 보세요.<button type="button" class="btn" data-empty="add">${I.plus}음악 추가</button></div>`);
   // 필터 칩 표시를 맞추고, '초기화'는 걸려 있는 조건이 있을 때만 보여줘요
   ['genre-filter','artist-filter','year-filter','song-sort'].forEach(i=>{const e=$('#'+i);if(e&&e._chip)e._chip()});
   const rs=$('#filter-reset');if(rs)rs.hidden=!($('#song-search').value.trim()||sc!=='all'||cur.genre||cur.artist||cur.year||so!=='new')}
@@ -1115,7 +1115,7 @@ function renderTaste(){
   if(songs.length){const top=genres[0]?.[0]||'다양한 장르',sound=sounds[0]?.[0]||'여러 사운드';
     $('#taste-headline').textContent=`${top} 취향이 가장 많아요.`;
     $('#taste-copy').textContent=`등록한 ${songs.length}곡 중 ${top} 장르가 가장 많아요.`}
-  else{$('#taste-headline').textContent='';$('#taste-copy').textContent='노래를 추가하면 여기에 취향이 정리돼요.'}}
+  else{$('#taste-headline').textContent='';$('#taste-copy').textContent='음악을 추가하면 여기에 취향이 정리돼요.'}}
 function render(){ // 보이는 페이지만 다시 그림 (다른 페이지는 go()로 이동할 때 그려짐)
   const p=(document.querySelector('.page.active')||{}).id;
   if(p==='page-songs')renderSongs();
@@ -1136,7 +1136,7 @@ function renderCharts(){
   const topDec=Object.entries(Object.keys(years).reduce((a,y)=>{const d=Math.floor(y/10)*10+'s';a[d]=(a[d]||0)+years[y];return a},{})).sort((a,b)=>b[1]-a[1])[0];
   try{renderSubGenres()}catch(e){}
   try{renderTopArtists()}catch(e){}
-  $('#glance').innerHTML=[['노래',songs.length],['아티스트',new Set(songs.map(s=>s.artist.toLowerCase())).size],['앨범',albums.filter(a=>!a.hidden).length],['가장 많은 연대',topDec?topDec[0].replace('s','년대'):'–']].map(([l,v])=>`<div><small>${l}</small><b>${esc(v)}</b></div>`).join('');
+  $('#glance').innerHTML=[['음악',songs.length],['아티스트',new Set(songs.map(s=>s.artist.toLowerCase())).size],['앨범',albums.filter(a=>!a.hidden).length],['가장 많은 연대',topDec?topDec[0].replace('s','년대'):'–']].map(([l,v])=>`<div><small>${l}</small><b>${esc(v)}</b></div>`).join('');
 }
 
 // ===== 세부 장르: Last.fm 아티스트 태그로 분석 (한 번 불러오면 저장해 두고 60일 동안 재사용) =====
@@ -1195,7 +1195,7 @@ function subCompute(){
 }
 function subPaint(){
   const box=document.getElementById('sub-donut'),note=document.getElementById('sub-note');if(!box)return;
-  if(!songs.length){box.innerHTML='<div class="empty">노래를 추가하면 세부 장르가 나와요.</div>';if(note)note.textContent='';return}
+  if(!songs.length){box.innerHTML='<div class="empty">음악을 추가하면 세부 장르가 나와요.</div>';if(note)note.textContent='';return}
   if(subBusy){box.innerHTML='';return}
   const r=subCompute();subSongTags=r.st;
   if(!r.used){box.innerHTML=subBusy?'':'<div class="empty">아직 세부 장르 정보가 없어요. 이 페이지를 열어 두면 불러와요.</div>';return}
@@ -1695,7 +1695,7 @@ async function showSimilar(id){
   const res=out.map(c=>({...c,meta:c.match?'유사도 '+Math.round(c.match*100)+'%':''}));
   renderRecList($('#sim-results'),res,{cap:30});
 }
-// 선택한 추천 곡들을 노래 추가 창으로 차례대로 보내 Deezer/Apple 검색 결과로 자동 입력
+// 선택한 추천 곡들을 음악 추가 창으로 차례대로 보내 Deezer/Apple 검색 결과로 자동 입력
 function recSyncBar(container){
   const sel=container._sel;if(!sel)return;
   container.querySelectorAll('[data-row]').forEach(row=>{
@@ -1723,7 +1723,7 @@ function fillFromRec(item){
   setSongScope('all');$('#api-song-query').value=item.title+' '+item.artist;
   $('#f-title').value=item.title;$('#f-artist').value=item.artist;
   const n=addQueueTotal-addQueue.length;
-  $('#song-modal-title').textContent=queueOn?`노래 추가 (${n}/${addQueueTotal})`:'노래 추가';
+  $('#song-modal-title').textContent=queueOn?`음악 추가 (${n}/${addQueueTotal})`:'음악 추가';
   syncQueueUI();openModal('song-modal');
   const container=$('#api-song-results');
   container.innerHTML='<div class="api-status">곡 정보를 찾고 있어요…</div>';
@@ -1930,7 +1930,7 @@ $('#rec-btn').onclick=async()=>{
 };
 
 // ===== 플레이리스트 가져오기 =====
-const PL_COL={title:/^(name|title|track( name)?|song|이름|곡명?|제목|노래)$/i,artist:/^(artist|아티스트)$/i,album:/^(album|앨범)$/i,genre:/^(genre|장르)$/i,year:/^(year|연도|발매.*|release.*)$/i};
+const PL_COL={title:/^(name|title|track( name)?|song|이름|곡명?|제목|음악)$/i,artist:/^(artist|아티스트)$/i,album:/^(album|앨범)$/i,genre:/^(genre|장르)$/i,year:/^(year|연도|발매.*|release.*)$/i};
 function csvSplit(l){const o=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'){if(l[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===','){o.push(c.trim());c=''}else c+=ch}o.push(c.trim());return o}
 function parsePlaylist(text,fmt){
   // 애플 뮤직 내보내기는 줄바꿈이 \r(구형 Mac)인 경우가 있어 \r\n, \r, \n 모두 처리
@@ -2176,7 +2176,7 @@ function renderPick(){
   $('#pick-list').innerHTML=list.map(x=>{const on=pickSel.includes(x.id);return `<div class="song-row" data-pick="${x.id}" style="cursor:pointer"><div class="mini-cover">${cover(x.cover,x.album||x.title)}</div><div class="song-meta"><strong>${esc(x.title)}</strong><span>${esc(x.artist)}</span></div><b style="width:24px;text-align:center">${on?'✓':''}</b></div>`}).join('')||'<div class="empty">곡이 없어요.</div>';
 }
 $('#rec-pick').onclick=()=>{
-  if(songs.length<1){toast('먼저 노래를 추가해 주세요.');return}
+  if(songs.length<1){toast('먼저 음악을 추가해 주세요.');return}
   pickSel=[];$('#pick-search').value='';renderPick();openModal('pick-modal');
 };
 $('#pick-search').addEventListener('input',renderPick);
@@ -2458,7 +2458,7 @@ render();
 })();
 
 /* ===== part 3 ===== */
-// ===== 노래 추가 창에서 앨범 통째로 추가 =====
+// ===== 음악 추가 창에서 앨범 통째로 추가 =====
 (()=>{
 const seg=$('#api-song-scope');
 seg.insertAdjacentHTML('beforeend','<button type="button" data-sscope="album">앨범</button>');
@@ -2771,7 +2771,7 @@ async function fillSong(s){
 }
 
 window.fillSongInfo=fillSong; // 달력에서 곡을 추가할 때도 연도·장르를 채워요
-// ---------- 노래 추가/수정 창: 검색 결과를 고르면 비어 있는 연도·장르를 채워요 ----------
+// ---------- 음악 추가/수정 창: 검색 결과를 고르면 비어 있는 연도·장르를 채워요 ----------
 window.fillFormExtra=async function(){
   const t=$('#f-title').value.trim(),a=first($('#f-artist').value);
   if(!t||!a)return;
@@ -3260,7 +3260,7 @@ show(null);
       return `<div class="pl-card" data-i="${i}">
         <div class="pl-top">${mosaic(l.items)}<div class="pl-info"><strong>${esc(l.name)}</strong><span>${l.items.length}곡${l.extN?` (내 곡 ${l.userN} + 추천 ${l.extN})`:''}${l.cohesion?` · 비슷한 정도 ${Math.round(Math.min(1,l.cohesion/0.6)*100)}%`:''}${playable<l.items.length?` · 미리듣기 ${playable}곡`:''}</span>${l.tags.length?`<div class="pl-tags">${l.tags.map(t=>`<em>${esc(t)}</em>`).join('')}</div>`:''}</div></div>
         <div class="pl-actions"><button class="btn small" data-pl="play" ${playable?'':'disabled'}>${playing?I.stop+' 정지':I.play+' 재생'}</button><button class="btn ghost small" data-pl="copy">목록 복사</button><button class="btn ghost small" data-pl="toggle">${open?'접기':'곡 보기'}</button></div>
-        ${open?`<div class="pl-list">${l.items.map((s,j)=>`<div class="pl-row${playingId===s.id?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.ext?'<b class="pl-ext">추천</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${s.ext?`<button class="icon-btn" data-pladd="${esc(s.id)}" title="내 노래에 추가" aria-label="내 노래에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-plsong="${esc(s.id)}" aria-label="미리듣기">${playingId===s.id&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>`:''}
+        ${open?`<div class="pl-list">${l.items.map((s,j)=>`<div class="pl-row${playingId===s.id?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.ext?'<b class="pl-ext">추천</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${s.ext?`<button class="icon-btn" data-pladd="${esc(s.id)}" title="내 음악에 추가" aria-label="내 음악에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-plsong="${esc(s.id)}" aria-label="미리듣기">${playingId===s.id&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>`:''}
       </div>`}).join('')+(made.left?`<p class="taste-text">어느 목록과도 비슷하지 않은 곡이 ${made.left}곡 있어요.</p>`:'')+(made.lists.some(l=>l.cen&&l.total>l.userN)?`<p class="taste-text">곡이 많은 목록은 대표곡 ${USER_MAX}곡만 담았어요.</p>`:'')+(stale?'<p class="taste-text">곡이 추가되었어요. 다시 만들면 반영돼요.</p>':'');
   }
   async function make(){
@@ -3604,7 +3604,7 @@ show(null);
   wc.addEventListener('input',e=>{if(e.target.id==='wc-q')wcSeeds(e.target.value)});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&W)closeWc()});
   $('#upl-new').onclick=()=>{
-    if(!songs.length){toast('대표곡으로 쓸 노래를 먼저 추가해 주세요.');return}
+    if(!songs.length){toast('대표곡으로 쓸 음악을 먼저 추가해 주세요.');return}
     W={pl:{name:'새 플리',items:[]},view:'seed',pool:new Map(),shown:new Set(),tv:new Map(),hist:[],cur:[],tok:Date.now(),df:{},N:1,sel:[],size:10,lib:true};
     openModal('wc-modal');wcView();
   };
@@ -3619,7 +3619,7 @@ show(null);
       return `<div class="pl-card" data-u="${esc(p.id)}">
         <div class="pl-top">${mosaic(p.items)}<div class="pl-info"><strong>${esc(p.name)}</strong><span>${p.items.length}/${SZ(p)}곡 · 대표곡 ${esc((p.items.find(x=>x.seed)||p.items[0]).title)}${p.items.filter(x=>x.seed).length>1?' 외 '+(p.items.filter(x=>x.seed).length-1)+'곡':''}</span></div></div>
         <div class="pl-actions"><button class="btn small" data-ua="play" ${play?'':'disabled'}>${playing?I.stop+' 정지':I.play+' 재생'}</button>${p.items.length<SZ(p)?'<button class="btn ghost small" data-ua="more">이어서 담기</button>':''}<button class="btn ghost small" data-ua="toggle">${open?'접기':'곡 보기'}</button><button class="btn ghost small" data-ua="copy">복사</button><button class="btn ghost small" data-ua="rename">이름</button><button class="btn ghost small" data-ua="del">삭제</button></div>
-        ${open?`<div class="pl-list">${p.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${s.lib?'<b class="pl-ext">내 곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.seed&&!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-uadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-usong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>`:''}
+        ${open?`<div class="pl-list">${p.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.seed?'<b class="pl-ext">대표곡</b>':''}${s.lib?'<b class="pl-ext">내 곡</b>':''}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.seed&&!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-uadd="${j}" title="내 음악에 추가" aria-label="내 음악에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-usong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>`:''}
       </div>`}).join('');
   }
   $('#upl-grid').addEventListener('click',e=>{
@@ -3670,7 +3670,7 @@ show(null);
     box.innerHTML=`<div class="pl-card">
       <div class="pl-top">${mosaic(m.items)}<div class="pl-info"><strong>${esc(m.name)}</strong><span>${m.items.length}곡${m.mine?` (추천 ${m.items.length-m.mine} + 내 곡 ${m.mine})`:''}</span></div></div>
       <div class="pl-actions"><button class="btn small" data-ga="play">${playing?I.stop+' 정지':I.play+' 재생'}</button><button class="btn ghost small" data-ga="copy">복사</button><button class="btn ghost small" data-ga="save"${GP.saved?' disabled':''}>${GP.saved?'저장됨':'플리로 저장'}</button></div>
-      <div class="pl-list">${m.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.lib?'<b class="pl-ext">내 곡</b>':'<b class="pl-ext">추천</b>'}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-gadd="${j}" title="내 노래에 추가" aria-label="내 노래에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-gsong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>
+      <div class="pl-list">${m.items.map((s,j)=>`<div class="pl-row${playingId===iid(s)?' on':''}"><span class="pl-n">${j+1}</span><span class="pl-t">${s.lib?'<b class="pl-ext">내 곡</b>':'<b class="pl-ext">추천</b>'}${esc(s.title)}<small>${esc(s.artist)}</small></span>${!s.lib&&!recRegHook(s)?`<button class="icon-btn" data-gadd="${j}" title="내 음악에 추가" aria-label="내 음악에 추가">${I.plus}</button>`:''}${s.preview?`<button class="icon-btn" data-gsong="${esc(iid(s))}" aria-label="미리듣기">${playingId===iid(s)&&!player.paused?I.pause:I.play}</button>`:''}</div>`).join('')}</div>
     </div>`;
   }
   async function gplMake(){
@@ -3854,7 +3854,7 @@ const make=(key,block,title,desc,onOpen)=>{
   $('#'+key+'-open').onclick=()=>{go(key);tab().classList.add('active');if(onOpen)onOpen()};
   $('#'+key+'-back').onclick=()=>{recAudio.pause();go('taste')};
 };
-make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 노래를 골라 드려요',()=>{$('#rec-body').style.display=''});
+make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 음악을 골라 드려요',()=>{$('#rec-body').style.display=''});
 $('#top-artists').addEventListener('click',e=>{const it=e.target.closest('.legend div');if(!it)return;const n=it.dataset.a;if(n&&AT.openDetail)AT.openDetail('artist',n,n)});
 make('cf',$('#cf-block'),'다른 사용자들이 좋아한 곡','취향이 비슷한 사용자들이 담은 곡을 볼 수 있어요');
 make('gpl',$('#gpl-block'),'장르별 추천 플리','장르를 고르고 버튼을 누르면 그때 취향에 맞춰 플리를 만들어요',()=>AT.gplRefresh&&AT.gplRefresh());
