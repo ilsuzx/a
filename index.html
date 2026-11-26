@@ -640,7 +640,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 </section>
 
 <section class="page" id="page-albums">
-  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="album-hidden-btn">숨긴 앨범 (0)</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>앨범 추가</button></div></div>
+  <div class="head"><h1>앨범</h1><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="album-hidden-btn">숨긴 앨범</button><button class="btn secondary" id="album-sel-toggle">선택</button><button class="btn" id="add-album"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>앨범 추가</button></div></div>
   <div class="toolbar"><input class="search" id="album-search" placeholder="앨범명 또는 아티스트 검색"><select id="album-sort"><option value="recent" selected>최근 추가순</option><option value="new">내 순서 (끌어서 변경)</option><option value="title">제목순</option><option value="year">발매연도 최신순</option><option value="year-asc">발매연도 오래된 순</option><option value="artist">아티스트순</option><option value="random">랜덤순</option></select><label class="albsz"><span id="album-cols-n"></span><input type="range" id="album-cols" min="2" max="12" step="1" aria-label="한 줄에 보이는 앨범 수"></label></div>
   <div class="grid" id="album-grid" style="margin-top:20px"></div>
 </section>
@@ -937,14 +937,15 @@ function dedupeAlbums(){
 })();
 
 // ===== 앨범: 숨기기 / 숨긴 앨범 보기 (삭제하지 않고 목록에서만 숨겨요) =====
-document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hidden-albums-modal"><div class="modal"><div class="modal-head"><h2>숨긴 앨범</h2><button class="close" id="ha-close" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="ha-grid"></div><div class="pa-actions" id="ha-actions"><button class="btn secondary" type="button" id="ha-all">전체 선택</button><button class="btn danger" type="button" id="ha-del">삭제</button><button class="btn" type="button" id="ha-show">다시 표시하기</button></div></div></div>');
+document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hidden-albums-modal"><div class="modal"><div class="modal-head"><h2 id="ha-title">숨긴 앨범</h2><button class="close" id="ha-close" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="ha-grid"></div><div class="pa-actions" id="ha-actions"><button class="btn secondary" type="button" id="ha-all">전체 선택</button><button class="btn danger" type="button" id="ha-del">삭제</button><button class="btn" type="button" id="ha-show">다시 표시하기</button></div></div></div>');
 (()=>{
   const md=document.getElementById('hidden-albums-modal'),grid=document.getElementById('ha-grid'),btn=document.getElementById('album-hidden-btn');
   const sel=new Set(),hid=()=>albums.filter(a=>a.hidden);
   function paint(){
     const list=hid();[...sel].forEach(i=>{if(!list.some(a=>a.id===i))sel.delete(i)});
-    if(btn)btn.textContent=`숨긴 앨범 (${list.length})`;
+    if(btn)btn.textContent='숨긴 앨범';
     if(!md.classList.contains('open'))return;
+    document.getElementById('ha-title').textContent=`숨긴 앨범 · ${list.length}개`;
     grid.innerHTML=list.length?`<div class="ha-grid">${list.map(a=>`<button type="button" class="ha-item${sel.has(a.id)?' on':''}" data-id="${esc(a.id)}" aria-pressed="${sel.has(a.id)}"><span class="ha-cv">${cover(a.cover,a.title)}</span><b>${esc(a.title)}</b><small>${esc(a.artist)}</small></button>`).join('')}</div>`
       :'<div class="empty"><b>숨긴 앨범이 없어요</b>앨범 목록에서 \'선택\' 후 \'숨기기\'를 누르면 여기로 와요.</div>';
     document.getElementById('ha-actions').style.display=list.length?'':'none';
