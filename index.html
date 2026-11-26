@@ -3040,44 +3040,59 @@ show(null);
 
   // 2) 곡 사이의 비슷한 정도(0~1)
   //    태그 코사인 65% + 비슷한 아티스트(Last.fm) 20% + 같은 아티스트 10% + 발매 시기 5%
-  function buildSim(list){
+  function* buildSim(list){
     const N=list.length,raw=list.map(rawVec),df={};
     raw.forEach(o=>o.v.forEach((_,k)=>{df[k]=(df[k]||0)+1}));
     const label={};raw.forEach(o=>o.lab.forEach((n,k)=>{if(!label[k])label[k]=n}));
     // 거의 모든 곡에 붙은 태그는 변별력이 없어서 idf로 비중을 낮춰요
     const vecs=raw.map(o=>{const m=new Map();o.v.forEach((w,k)=>m.set(k,w*Math.log(1+N/df[k])));return unit(m)});
-    const link=(a,b)=>{const ka=recNorm(a.artist),kb=recNorm(b.artist);
-      return Math.max((simCache[ka]||{})[kb]||0,(simCache[kb]||{})[ka]||0)};
+    const art=list.map(s=>recNorm(s.artist)),years=list.map(yr); // 곡마다 한 번만 계산
+    const link=(a,b)=>Math.max((simCache[a]||{})[b]||0,(simCache[b]||{})[a]||0);
     const S=Array.from({length:N},()=>new Array(N).fill(0));
-    for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
-      const a=list[i],b=list[j],same=recNorm(a.artist)===recNorm(b.artist);
-      const ya=yr(a),yb=yr(b),yv=ya&&yb?Math.max(0,1-Math.abs(ya-yb)/10):0.5;
-      const sc=0.65*cos(vecs[i],vecs[j])+0.2*(same?0:link(a,b))+0.1*(same?1:0)+0.05*yv;
-      S[i][j]=S[j][i]=sc;
+    for(let i=0;i<N;i++){
+      for(let j=i+1;j<N;j++){
+        const same=art[i]===art[j],ya=years[i],yb=years[j],yv=ya&&yb?Math.max(0,1-Math.abs(ya-yb)/10):0.5;
+        const sc=0.65*cos(vecs[i],vecs[j])+0.2*(same?0:link(art[i],art[j]))+0.1*(same?1:0)+0.05*yv;
+        S[i][j]=S[j][i]=sc;
+      }
+      if(i%20===19)yield Math.round(50*(i+1)/N);
     }
     return {S,vecs,label,df,N};
   }
 
   // 3) 평균 연결 계층 군집화: 가장 비슷한 두 묶음부터 합치고, 기준보다 멀어지면 멈춰요
-  function cluster(list,F){
+  function* cluster(list,F){
     const {S,N}=F,MIN=N<12?2:3,MAXSZ=Math.min(40,Math.max(10,Math.ceil(N*0.4)));
     const all=[];for(let i=0;i<N;i++)for(let j=i+1;j<N;j++)all.push(S[i][j]);all.sort((a,b)=>a-b);
     const T=Math.min(0.5,Math.max(0.18,all.length?all[Math.floor(all.length*0.75)]:0.3));
     const L=S.map(r=>r.slice()),act=new Array(N).fill(true),size=new Array(N).fill(1),mem=list.map((_,i)=>[i]);
-    const merge=(minSim,limitBig)=>{
+    // near[i]: i 뒤의 묶음 중 합칠 수 있는 가장 가까운 상대 (바뀐 줄만 다시 계산)
+    const near=new Array(N).fill(-1),nv=new Array(N).fill(-1);
+    const scan=i=>{let bj=-1,bv=-1;for(let j=i+1;j<N;j++)if(act[j]&&L[i][j]>bv&&size[i]+size[j]<=MAXSZ){bv=L[i][j];bj=j}near[i]=bj;nv[i]=bv};
+    for(let i=0;i<N;i++)scan(i);
+    let merged=0;
+    function* merge(minSim,limitBig){
       for(;;){
-        let bi=-1,bj=-1,bv=-1;
-        for(let i=0;i<N;i++){if(!act[i])continue;for(let j=i+1;j<N;j++){if(act[j]&&L[i][j]>bv&&size[i]+size[j]<=MAXSZ){bv=L[i][j];bi=i;bj=j}}}
+        let bi=-1,bv=-1;
+        for(let i=0;i<N;i++)if(act[i]&&near[i]>=0&&nv[i]>bv){bv=nv[i];bi=i}
         if(bi<0)break;
+        const bj=near[bi];
         if(!limitBig&&bv<minSim)break;
         if(limitBig){const big=act.reduce((c,a,i)=>c+(a&&size[i]>=MIN?1:0),0);if(big<=limitBig)break}
         const si=size[bi],sj=size[bj];
         for(let k=0;k<N;k++){if(!act[k]||k===bi||k===bj)continue;L[bi][k]=L[k][bi]=(L[bi][k]*si+L[bj][k]*sj)/(si+sj)}
         mem[bi]=mem[bi].concat(mem[bj]);size[bi]=si+sj;act[bj]=false;
+        scan(bi);
+        for(let k=0;k<bj;k++){
+          if(!act[k]||k===bi)continue;
+          if(near[k]===bi||near[k]===bj)scan(k);
+          else if(k<bi&&size[k]+size[bi]<=MAXSZ&&(L[k][bi]>nv[k]||(L[k][bi]===nv[k]&&bi<near[k]))){near[k]=bi;nv[k]=L[k][bi]}
+        }
+        if(++merged%40===0)yield 50+Math.round(50*merged/N);
       }
-    };
-    merge(T,0);
-    merge(0,10); // 묶음이 너무 많으면(10개 초과) 가장 가까운 것끼리 더 합쳐요
+    }
+    yield* merge(T,0);
+    yield* merge(0,10); // 묶음이 너무 많으면(10개 초과) 가장 가까운 것끼리 더 합쳐요
     let groups=[],small=[];
     mem.forEach((m,i)=>{if(!act[i])return;(m.length>=MIN?groups:small).push(m)});
     const etc=[];
@@ -3097,7 +3112,8 @@ show(null);
       const ranked=[...cen.entries()].filter(([k])=>g.filter(i=>vecs[i].has(k)).length>=Math.max(2,g.length*0.4)).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
       const spec=ranked.filter(k=>!GEN.has(k)),pick=(spec.length>=2?spec:[...spec,...ranked.filter(k=>GEN.has(k))]).slice(0,2);
       const tags=[...new Set([...spec,...ranked])].slice(0,4).map(k=>label[k]);
-      const avg=i=>g.reduce((a,j)=>a+(j===i?0:S[i][j]),0)/Math.max(1,g.length-1);
+      const memo=new Map(g.map(i=>[i,g.reduce((a,j)=>a+(j===i?0:S[i][j]),0)/Math.max(1,g.length-1)]));
+      const avg=i=>memo.get(i);
       let cur=g.reduce((b,i)=>avg(i)>avg(b)?i:b,g[0]);
       const left=new Set(g);left.delete(cur);const order=[cur];
       while(left.size){let b=-1,bv=-9;left.forEach(j=>{const v=S[cur][j]-(recNorm(list[cur].artist)===recNorm(list[j].artist)?0.12:0);if(v>bv){bv=v;b=j}});order.push(b);left.delete(b);cur=b}
@@ -3109,7 +3125,17 @@ show(null);
     if(C.etc.length>=C.MIN)out.push({name:'기타 모음',items:C.etc.slice(0,TOTAL).map(i=>list[i]),total:C.etc.length,tags:[],cohesion:0});
     return {lists:out.sort((a,b)=>b.total-a.total),left:C.etc.length<C.MIN?C.etc.length:0,ids:new Set(list.map(s=>s.id)),F:{df,N}};
   }
-  const build=list=>{const F=buildSim(list);return finish(list,F,cluster(list,F))};
+  function* steps(list){const F=yield* buildSim(list);const C=yield* cluster(list,F);return finish(list,F,C)}
+  const build=list=>{const g=steps(list);let r;do{r=g.next()}while(!r.done);return r.value};
+  // 큰 작업은 잘게 나눠 돌려서 화면이 멈추지 않게 해요
+  const buildAsync=async(list,prog)=>{
+    const g=steps(list);let r=g.next(),t=Date.now();
+    while(!r.done){
+      if(Date.now()-t>40){prog(r.value);await new Promise(res=>setTimeout(res));t=Date.now()}
+      r=g.next();
+    }
+    return r.value;
+  };
   AT.plBuild=build; // 점검용
 
   // 5) 내 곡과 비슷한 '내 보관함에 없는' 곡을 찾아서 섞어요 (유사곡 → 태그 적합도로 재정렬 → 미리듣기 확인)
@@ -3221,7 +3247,7 @@ show(null);
       await pool(need,4,async s=>{
         let m=new Map();try{m=await fullTags(s.artist,s.title)}catch(e){}
         if(m&&m.size)featCache[skey(s)]=[...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,25).map(([k,w])=>[k,Math.round(w*1000)/1000]);else miss++;
-        done++;upd()});
+        done++;upd();if(done%20===0)wr(FK,featCache)});
       // 아티스트별 '비슷한 아티스트'
       await pool(arts,4,async([k,name])=>{
         try{const d=await lfm('artist.getSimilar',{artist:name,limit:'50'});
@@ -3229,7 +3255,8 @@ show(null);
           if(l.length||(d&&d.similarartists)){const o={};l.forEach(a=>{o[recNorm(a.name)]=Number(a.match)||0});simCache[k]=o}}catch(e){}
         done++;upd()});
       wr(FK,featCache);wr(SK,simCache);
-      made=build(songs);
+      btn.textContent='묶는 중…';
+      made=await buildAsync(songs.slice(),pc=>{btn.textContent=`묶는 중 ${pc}%`});
       try{await mix(made,(a,b)=>{btn.textContent=`비슷한 곡 찾는 중 ${a}/${b}`})}catch(e){}
       openSet=new Set();stale=false;draw();
       btn.textContent='다시 만들기';
