@@ -649,7 +649,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
   <div class="head"><div><h1>취향</h1><p class="taste-text" id="taste-copy"></p></div></div>
   <div class="block"><div class="glance" id="glance"></div></div>
   <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div class="seg" id="rec-mode" role="group" aria-label="추천 기준"><button type="button" data-mode="similar">비슷하게</button><button type="button" data-mode="new">새롭게</button></div><span class="ana-note" id="dis-info" style="margin:0" hidden><span></span> <button type="button" class="link" id="dis-clear">지우기</button></span></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
-  <div class="block"><h2>세부 장르</h2><p class="taste-text" id="sub-note" style="margin:4px 0 14px;font-size:13px"></p><div id="sub-donut"></div></div>
+  <div class="block"><h2>세부 장르</h2><p class="taste-text" id="sub-note" style="margin:4px 0 14px;font-size:13px"></p><div class="sub-row"><div id="sub-donut"></div><div id="top-artists"></div></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
   <h2 id="taste-headline" style="display:none"></h2>
@@ -1101,6 +1101,11 @@ function renderAlbums(){
   if(sort==='artist')list.sort((a,b)=>String(a.artist).localeCompare(String(b.artist),'ko')||String(a.title).localeCompare(String(b.title),'ko'));
   if(sort==='random')list.sort((a,b)=>albRnd(a.id)-albRnd(b.id));
   $('#album-grid').innerHTML=list.map(albumCard).join('')||`<div class="empty" style="grid-column:1/-1">${I.note}<b>아직 앨범이 없어요</b>좋아하는 앨범을 하나씩 모아 보세요.${albums.some(a=>!a.hidden)||q?'':`<button type="button" class="btn" data-empty="add-album">${I.plus}앨범 추가</button>`}</div>`}
+function renderTopArtists(){
+  const box=document.getElementById('top-artists');if(!box)return;
+  const top=counts(songs.map(s=>s.artist)).slice(0,5);
+  box.innerHTML=songs.length?`<h2 style="margin:0 0 4px">많이 담은 아티스트</h2>${bars(top)}`:'';
+}
 function counts(values){const c={};values.filter(Boolean).forEach(v=>v.split(',').map(x=>x.trim()).filter(Boolean).forEach(x=>c[x]=(c[x]||0)+1));return Object.entries(c).sort((a,b)=>b[1]-a[1])}
 function bars(items){if(!items.length)return '<div class="empty">아직 분석할 데이터가 부족합니다.</div>';const max=items[0][1];return items.slice(0,6).map(([name,n])=>`<div class="bar-item"><div class="bar-label"><span>${esc(name)}</span><span>${n}</span></div><div class="bar"><i style="width:${n/max*100}%"></i></div></div>`).join('')}
 function renderTaste(){
@@ -1129,6 +1134,7 @@ function renderCharts(){
   const ys=Object.keys(years).map(Number).sort((a,b)=>a-b).slice(-12),maxY=Math.max(1,...ys.map(y=>years[y]));
   const topDec=Object.entries(Object.keys(years).reduce((a,y)=>{const d=Math.floor(y/10)*10+'s';a[d]=(a[d]||0)+years[y];return a},{})).sort((a,b)=>b[1]-a[1])[0];
   try{renderSubGenres()}catch(e){}
+  try{renderTopArtists()}catch(e){}
   $('#glance').innerHTML=[['노래',songs.length],['아티스트',new Set(songs.map(s=>s.artist.toLowerCase())).size],['앨범',albums.filter(a=>!a.hidden).length],['가장 많은 연대',topDec?topDec[0].replace('s','년대'):'–']].map(([l,v])=>`<div><small>${l}</small><b>${esc(v)}</b></div>`).join('');
 }
 
@@ -2281,6 +2287,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // ---------- 항목 눌러서 해당 곡만 보기 ----------
 let xd=null;
 function openDetail(kind,val,label){xd={kind,val,label};drawDetail();openModal('xd-modal')}
+AT.openDetail=openDetail;
 function drawDetail(){
   if(!xd)return;
   let list;
@@ -3718,6 +3725,9 @@ show(null);
 #page-cf .block>.head{justify-content:flex-end}
 /* 세부 장르 곡 목록 창: 장르 태그·재생·비슷한 곡·수정·삭제 버튼 숨김 */
 #xd-list .song-tag,#xd-list .row-actions{display:none}
+.sub-row{display:flex;gap:56px;align-items:flex-start;flex-wrap:wrap}
+#top-artists{flex:1 1 260px;min-width:240px;max-width:440px}
+@media(max-width:700px){#top-artists{flex-basis:100%;max-width:none;margin-top:8px}}
 #xd-list{overflow-x:hidden!important}
 #xd-list .song-row{margin:0;padding-left:0;padding-right:0}
 #page-wcup h1,#page-autopl h1{margin-bottom:16px}
@@ -3740,6 +3750,7 @@ const make=(key,block,title,desc,onOpen)=>{
   $('#'+key+'-back').onclick=()=>{recAudio.pause();go('taste')};
 };
 make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 노래를 골라 드려요',()=>{$('#rec-body').style.display=''});
+$('#top-artists').addEventListener('click',e=>{const it=e.target.closest('.bar-item');if(!it)return;const n=it.querySelector('.bar-label span').textContent;if(n&&AT.openDetail)AT.openDetail('artist',n,n)});
 make('cf',$('#cf-block'),'다른 사용자들이 좋아한 곡','취향이 비슷한 사용자들이 담은 곡을 볼 수 있어요');
 make('wcup',$('#upl-block'),'플리 월드컵','대표곡을 고르고 비슷한 곡을 2곡씩 비교하며 플리를 만들어요');
 make('autopl',$('#pl-block'),'자동 플레이리스트','내 곡을 비슷한 것끼리 묶어 플레이리스트를 만들어요');
