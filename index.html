@@ -614,6 +614,11 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 .row-actions .icon-btn{color:var(--muted);opacity:1}
 .row-actions .icon-btn:hover,.row-actions .icon-btn.play{color:var(--fg)}
 .row-actions .icon-btn.fav.on{color:#e0405a}
+
+/* 추천 목록: '별로'와 '차단'은 나란히 */
+#rec-results .api-result-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex-shrink:0}
+#rec-results .api-result-actions [data-add]{grid-column:1/-1}
+#rec-results .api-result-actions button{padding:6px 8px;white-space:nowrap}
 </style>
 <!-- AFTERTONE 갤러리 테마: </head> 바로 앞에 통째로 붙여 넣으세요. 지우면 원래대로 돌아가요. -->
 </head>
@@ -643,7 +648,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 <section class="page" id="page-taste">
   <div class="head"><div><h1>취향</h1><p class="taste-text" id="taste-copy"></p></div></div>
   <div class="block"><div class="glance" id="glance"></div></div>
-  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
+  <div class="block"><div class="head" style="margin-bottom:8px"><h2>취향 기반 추천</h2><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="btn ghost small" id="rec-fold">접기</button><button class="btn ghost small" id="rec-reset">초기화</button><button class="btn secondary small" id="rec-pick">곡 직접 고르기</button><button class="btn small" id="rec-btn">추천 받기</button></div></div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div class="seg" id="rec-mode" role="group" aria-label="추천 기준"><button type="button" data-mode="similar">비슷하게</button><button type="button" data-mode="new">새롭게</button></div><span class="ana-note" id="dis-info" style="margin:0" hidden><span></span> <button type="button" class="link" id="dis-clear">지우기</button></span></div><div id="rec-body"><div class="api-results" id="rec-results" style="max-height:none"></div></div></div>
   <div class="block"><h2>세부 장르</h2><p class="taste-text" id="sub-note" style="margin:4px 0 14px;font-size:13px"></p><div id="sub-donut"></div></div>
     <div class="block" style="display:none"><h2>사운드</h2><div class="tag-cloud" id="sound-tags"></div></div>
 
@@ -1613,7 +1618,7 @@ function renderRecList(container,list,opt){
   container._list=list;container._opt=opt;container._page=0;
   list.forEach(c=>{c._modal=container.id==='sim-results'});
   container.innerHTML='<div class="api-status rec-loading">미리듣기 가능한 곡을 확인하고 있어요…</div>'
-    +list.map((c,i)=>`<div class="api-result" data-row="${i}" style="display:none"><div class="mini-cover">${PH}</div><div class="api-result-info"><strong>${esc(c.title)}</strong><span>${esc(c.artist)}${c.meta?' · '+esc(c.meta):''}</span>${c.reason?`<span style="white-space:normal">${esc(c.reason)}</span>`:''}</div><button type="button" class="rec-play" data-play="${i}" style="display:none" aria-label="미리듣기">${I.play}</button><div class="api-result-actions"><button type="button" data-add="${i}">추가</button><button type="button" class="rec-block" data-block="${i}" title="이 곡 더 이상 추천 안 받기" aria-label="이 곡 더 이상 추천 안 받기" style="background:transparent;color:var(--muted,#888);border:1px solid var(--line,#ddd);margin-left:6px">차단</button></div></div>`).join('')
+    +list.map((c,i)=>`<div class="api-result" data-row="${i}" style="display:none"><div class="mini-cover">${PH}</div><div class="api-result-info"><strong>${esc(c.title)}</strong><span>${esc(c.artist)}${c.meta?' · '+esc(c.meta):''}</span>${c.reason?`<span style="white-space:normal">${esc(c.reason)}</span>`:''}</div><button type="button" class="rec-play" data-play="${i}" style="display:none" aria-label="미리듣기">${I.play}</button><div class="api-result-actions"><button type="button" data-add="${i}">추가</button>${container.id==='rec-results'?`<button type="button" data-dis="${i}" title="이런 분위기 덜 추천받기" style="background:transparent;color:var(--muted);border:1px solid var(--line)">별로</button>`:''}<button type="button" class="rec-block" data-block="${i}" title="이 곡 더 이상 추천 안 받기" aria-label="이 곡 더 이상 추천 안 받기" style="background:transparent;color:var(--muted,#888);border:1px solid var(--line,#ddd);margin-left:6px">차단</button></div></div>`).join('')
     +'<div class="rec-addbar" style="display:none"><span></span><button type="button" class="rec-addgo">추가하고 정보 채우기 →</button></div>'
     +'<div class="rec-pager" style="display:none"><button type="button" class="btn secondary small" data-pg="-1" aria-label="이전 페이지">‹</button><span></span><button type="button" class="btn secondary small" data-pg="1" aria-label="다음 페이지">›</button></div>';
   container._sel=new Set();
@@ -1627,6 +1632,7 @@ function renderRecList(container,list,opt){
     if(items.length)startAddQueue(items);
   });
   recBoxes.add(container);
+  container.querySelectorAll('[data-dis]').forEach(b=>b.addEventListener('click',()=>dislikeRec(container,Number(b.dataset.dis))));
   container.querySelectorAll('[data-block]').forEach(b=>b.addEventListener('click',()=>blockRec(list[Number(b.dataset.block)])));
   container.querySelectorAll('[data-play]').forEach(b=>{b._item=list[Number(b.dataset.play)];b.addEventListener('click',()=>toggleRecPlay(b._item))});
   container.querySelectorAll('[data-pg]').forEach(b=>b.addEventListener('click',()=>{container._page=(container._page||0)+Number(b.dataset.pg);recPage(container)}));
@@ -1754,7 +1760,43 @@ async function fullTags(artist,track){
   return out;
 }
 const unitVec=m=>{const n=Math.sqrt([...m.values()].reduce((a,x)=>a+x*x,0))||1;const o=new Map();m.forEach((v,k)=>o.set(k,v/n));return o};
+// ---------- 추천 기준(비슷하게/새롭게)과 '별로예요' ----------
+const readLS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
+const writeLS=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let recMode=readLS('aftertone_recmode','similar')==='new'?'new':'similar';
+let disliked=(a=>Array.isArray(a)?a:[])(readLS('aftertone_disliked',[]));
+function drawRecPrefs(){
+  document.querySelectorAll('#rec-mode button').forEach(b=>{const on=b.dataset.mode===recMode;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
+  $('#dis-info').hidden=!disliked.length;
+  $('#dis-info span').textContent='별로 표시 '+disliked.length+'곡';
+}
+const saveDislikes=()=>{writeLS('aftertone_disliked',disliked.slice(-200));drawRecPrefs()};
+$('#rec-mode').onclick=e=>{
+  const b=e.target.closest('[data-mode]');if(!b||b.dataset.mode===recMode)return;
+  recMode=b.dataset.mode;writeLS('aftertone_recmode',recMode);drawRecPrefs();
+  toast(recMode==='new'?'덜 알려진 아티스트와 다른 장르를 섞어요. 추천 받기를 눌러 주세요.':'저장한 곡과 비슷하게 골라요. 추천 받기를 눌러 주세요.');
+};
+$('#dis-clear').onclick=()=>{const old=disliked;disliked=[];saveDislikes();undoToast('별로 표시를 모두 지웠어요.',()=>{disliked=old;saveDislikes()})};
+async function dislikeRec(box,i){
+  const c=box._list&&box._list[i];if(!c)return;
+  const row=box.querySelector('[data-row="'+i+'"]');if(!row||!row.dataset.ok)return;
+  delete row.dataset.ok;row.dataset.gone='1';recSyncBar(box);recPage(box);
+  if(recPlaying===c)recAudio.pause();
+  const item={k:skey(c),artist:c.artist,tags:[]};
+  disliked.push(item);saveDislikes();
+  undoToast('이런 분위기는 다음 추천부터 덜 나와요.',()=>{disliked=disliked.filter(x=>x!==item);saveDislikes();delete row.dataset.gone;row.dataset.ok='1';recPage(box)});
+  try{item.tags=[...(c.vec&&c.vec.size?c.vec:unitVec(await fullTags(c.artist,c.title)))];saveDislikes()}catch(e){}
+}
+drawRecPrefs();
+const listenerMem=new Map();
+async function listenersOf(artist){
+  if(!listenerMem.has(artist)){
+    try{const d=await lfm('artist.getInfo',{artist});const n=Number(d&&d.artist&&d.artist.stats&&d.artist.stats.listeners)||0;if(n)listenerMem.set(artist,n)}catch(e){}
+  }
+  return listenerMem.get(artist)||0;
+}
 async function recommend(custom){
+  const fresh0=recMode==='new';
   const lib=new Set(songs.map(skey));
   const wshuffle=a=>a.map(x=>[Math.pow(Math.random(),1/recW(x)),x]).sort((p,q)=>q[0]-p[0]).map(x=>x[1]);
   const seeds=custom||wshuffle(songs).slice(0,10);
@@ -1786,13 +1828,30 @@ async function recommend(custom){
     if(!more.length)break;
     more.forEach(s=>usedSeeds.add(s));await collect(more);
   }
+  // '새롭게': 전체 느낌에서 덜 두드러진 태그의 곡도 후보에 섞어요
+  if(fresh0){
+    await Promise.all(topTags.slice(2,6).map(async([tag])=>{
+      try{
+        const d=await lfm('tag.getTopTracks',{tag,limit:'30'});
+        arr(d&&d.tracks&&d.tracks.track).forEach(t=>{
+          const c={title:t.name,artist:(t.artist&&t.artist.name)||''},k=skey(c);
+          if(!c.title||!c.artist||lib.has(k)||cand.has(k))return;
+          cand.set(k,{...c,sum:0.25,hits:1,seeds:[],tag});
+        });
+      }catch(e){}
+    }));
+  }
   let list=recFilterHook([...cand.values()]);
+  const noKeys=new Set(disliked.map(x=>x.k));
+  list=list.filter(c=>!noKeys.has(skey(c)));
+  if(fresh0){const mine=new Set(songs.map(s=>recNorm(s.artist)));list=list.filter(c=>!mine.has(recNorm(c.artist)))} // 이미 담은 아티스트는 빼요
   list.forEach(c=>{c.score=c.sum*(1+0.6*(c.hits-1))}); // 겹칠수록 가산
   const sorted=list.sort((a,b)=>b.score-a.score);
   const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
   let pool=fresh; // 이미 보여준 곡은 다시 넣지 않아요
   const per=new Map(); // 한 아티스트가 목록을 차지하지 않게 최대 2곡
-  const top=pool.filter(c=>{const a=recNorm(c.artist)||c.artist,n=per.get(a)||0;per.set(a,n+1);return n<2}).slice(0,45);
+  const capped=pool.filter(c=>{const a=recNorm(c.artist)||c.artist,n=per.get(a)||0;per.set(a,n+1);return n<2});
+  const top=fresh0?[...capped.filter(c=>!c.tag).slice(0,30),...capped.filter(c=>c.tag).slice(0,20)]:capped.slice(0,45);
   if(!top.length)return [];
   // 3) 후보의 태그가 합친 느낌과 얼마나 가까운지로 한 번 더 걸러서 순서를 정해요
   const noFeel=topTags.length<2;
@@ -1802,15 +1861,29 @@ async function recommend(custom){
     }
   }
   const maxS=Math.max(...top.map(c=>c.score),0.001);
+  // 별로 표시한 곡들의 분위기를 하나로 합쳐요
+  const dis=new Map();
+  disliked.forEach(x=>(x.tags||[]).forEach(([k,v])=>dis.set(k,(dis.get(k)||0)+v)));
+  const disVec=unitVec(dis),disArtists=new Set(disliked.map(x=>recNorm(x.artist)));
+  let obscure=()=>0.5;
+  if(fresh0){
+    for(let i=0;i<top.length;i+=6)await Promise.all(top.slice(i,i+6).map(async c=>{c.listeners=await listenersOf(c.artist)}));
+    const logs=top.filter(c=>c.listeners).map(c=>Math.log(c.listeners)),lo=Math.min(...logs),hi=Math.max(...logs);
+    obscure=c=>(c.listeners&&hi>lo)?(hi-Math.log(c.listeners))/(hi-lo):0.5; // 청취자가 적을수록 1에 가까워요
+  }
   top.forEach(c=>{
     let cos=0;const shared=[];
     if(!noFeel)c.vec.forEach((x,k)=>{const f=feel.get(k);if(f){cos+=x*f;shared.push([k,x*f])}});
     shared.sort((a,b)=>b[1]-a[1]);
     const sim=c.score/maxS;
     c.final=noFeel?sim:0.65*sim+0.35*Math.min(1,cos*1.6);
+    if(fresh0)c.final=0.2*sim+0.3*Math.min(1,cos*1.6)+0.5*obscure(c);
+    let bad=0;
+    if(c.vec)c.vec.forEach((x,k)=>{const f=disVec.get(k);if(f)bad+=x*f});
+    c.final*=(1-0.5*Math.min(1,bad))*(disArtists.has(recNorm(c.artist))?0.5:1);
     c.j=Math.random()*0.06;
     c.meta='추천 점수 '+Math.round(c.final*100);
-    c.reason=(c.hits>1?'고른 곡 '+c.hits+'곡과 함께 닿아 있어요':'모아 둔 곡들의 전체 분위기와 비슷해요')+(shared.length?' · '+shared.slice(0,3).map(x=>x[0]).join(', '):'');
+    c.reason=c.tag?'새롭게 골라봤어요 · '+c.tag:(c.hits>1?'고른 곡 '+c.hits+'곡과 함께 닿아 있어요':'모아 둔 곡들의 전체 분위기와 비슷해요')+(shared.length?' · '+shared.slice(0,3).map(x=>x[0]).join(', '):'');
   });
   let out=top.sort((a,b)=>(b.final+b.j)-(a.final+a.j));
   const best=out[0].final;
