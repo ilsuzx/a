@@ -1134,8 +1134,8 @@ function renderCharts(){
 
 // ===== 세부 장르: Last.fm 아티스트 태그로 분석 (한 번 불러오면 저장해 두고 60일 동안 재사용) =====
 var SUB_TTL=60*864e5,subCache=null,subBusy=false,subTimer=0,subSongTags=new Map(),subShownKeys=new Set();
-function subLoad(){if(subCache)return subCache;try{subCache=JSON.parse(localStorage.getItem('aftertone_subgenre_v1')||'{}')||{}}catch(e){subCache={}}return subCache}
-function subSave(){try{localStorage.setItem('aftertone_subgenre_v1',JSON.stringify(subCache))}catch(e){}}
+function subLoad(){if(subCache)return subCache;try{subCache=JSON.parse(localStorage.getItem('aftertone_subgenre_v2')||'{}')||{}}catch(e){subCache={}}return subCache}
+function subSave(){try{localStorage.setItem('aftertone_subgenre_v2',JSON.stringify(subCache))}catch(e){}}
 function subAk(a){return String(a||'').toLowerCase().replace(/\s+/g,' ').trim()}
 function subKey(l){return String(l||'').toLowerCase().replace(/[^a-z0-9가-힣]/g,'')}
 // 너무 흔하거나 장르가 아닌 태그(국적·'seen live' 등)는 빼고, 같은 뜻의 표기는 하나로 합쳐요
@@ -1149,11 +1149,7 @@ function subCanon(name){
   if(!k||SUB_SKIP.has(k))return null;
   return {k,l:n};
 }
-async function subArtistTags(artist){
-  const d=await lfm('artist.getTopTags',{artist});
-  if(d&&d.error===6)return [];            // 아티스트를 못 찾음 → 빈 결과로 기억
-  if(!d||!d.toptags)return null;          // 네트워크 문제 → 저장하지 않고 다음에 다시
-  const L=Array.isArray(d.toptags.tag)?d.toptags.tag:(d.toptags.tag?[d.toptags.tag]:[]);
+function subFromList(L){
   const mx=Math.max(1,...L.map(x=>Number(x.count)||0)),out=new Map();
   L.slice(0,25).forEach(x=>{
     const c=subCanon(x.name);if(!c)return;
@@ -1162,14 +1158,31 @@ async function subArtistTags(artist){
   });
   return [...out.values()].sort((a,b)=>b.w-a.w).slice(0,6).map(x=>[x.l,Math.round(x.w*100)/100]);
 }
+async function subArtistTags(artist){
+  const d=await lfm('artist.getTopTags',{artist});
+  let lf;
+  if(d&&d.error===6)lf=[];
+  else if(!d||!d.toptags)return null;
+  else lf=subFromList(Array.isArray(d.toptags.tag)?d.toptags.tag:(d.toptags.tag?[d.toptags.tag]:[]));
+  let mbT=[];
+  try{const r=window.mbArtistTags&&await window.mbArtistTags(artist);if(r)mbT=subFromList(r)}catch(e){}
+  return {tags:lf,mb:mbT};
+}
 function subCompute(){
   const c=subLoad(),agg=new Map(),st=new Map();let used=0,none=0;
+  const add=(m,name,w)=>{const x=subCanon(name);if(!x)return;const o=m.get(x.k);if(o)o.w+=w;else m.set(x.k,{l:x.l,w})};
   songs.forEach(s=>{
-    const e=c[subAk(s.artist)];if(!e)return;
-    if(!e.tags||!e.tags.length){none++;return}
-    const tg=e.tags.slice(0,5),sum=tg.reduce((a,x)=>a+x[1],0)||1;
-    used++;st.set(s.id,new Set(tg.map(x=>subKey(x[0]))));
-    tg.forEach(([l,w])=>{const k=subKey(l),o=agg.get(k)||{k,l,v:0,n:0};o.v+=w/sum;o.n++;agg.set(k,o)});
+    const e=c[subAk(s.artist)],m=new Map();
+    if(e){(e.tags||[]).forEach(([l,w])=>add(m,l,w));(e.mb||[]).forEach(([l,w])=>add(m,l,w*0.8))}
+    // 곡 단위 태그(추천/플리용으로 받아 둔 캐시)
+    const tc=tagCache.get(String(s.artist).toLowerCase().trim()+'|'+String(s.title).toLowerCase().trim());
+    if(tc&&tc.tags)tc.tags.forEach(([l,w])=>add(m,l,w*0.8));
+    // 직접 입력/Deezer 장르
+    String(s.genre||'').split(/[,;/]/).forEach(g=>{if(g.trim())add(m,g.trim(),1)});
+    if(!m.size){none++;return}
+    const tg=[...m.entries()].sort((a,b)=>b[1].w-a[1].w).slice(0,5),sum=tg.reduce((a,x)=>a+x[1].w,0)||1;
+    used++;st.set(s.id,new Set(tg.map(x=>x[0])));
+    tg.forEach(([k,o])=>{const a=agg.get(k)||{k,l:o.l,v:0,n:0};a.v+=o.w/sum;a.n++;agg.set(k,a)});
   });
   return {agg,used,none,st};
 }
@@ -1205,7 +1218,7 @@ async function subRun(){
       try{
         let tags=await subArtistTags(name);
         if(tags&&!tags.length&&/[,&\/]|feat|ft\./i.test(name)){const f=name.split(/\s*(?:,|\/|feat\.?|ft\.?)\s*/i)[0];if(f&&f!==name)tags=await subArtistTags(f)}
-        if(tags)c[k]={t:Date.now(),tags};else fail++;
+       if(tags)c[k]={t:Date.now(),tags:tags.tags,mb:tags.mb};else fail++;
       }catch(e){fail++}
       done++;upd();if(done%6===0)subPaint();
     }
@@ -2710,6 +2723,15 @@ async function mbArtist(name){
   const out=hit?{id:hit.id,name:hit.name,genre:pickGenre(hit.tags||[])}:null;
   artCache.set(k,out);return out;
 }
+  artCache.set(k,out);return out;
+}
+window.mbArtistTags=async name=>{
+  const d=await mb('artist',{query:'artist:"'+q(name)+'"',limit:'5'});
+  if(!d)return null; // 네트워크 실패는 저장하지 않아요
+  const k=recNorm(name);
+  const hit=(d.artists||[]).find(a=>(a.score||0)>=90&&mbNames(a).some(n=>recNorm(n)===k));
+  return hit?(hit.tags||[]).map(t=>({name:t.name,count:t.count||0})):[];
+};
 async function mbSong(t,artist){
   const d=await mb('recording',{query:'recording:"'+q(t)+'" AND artist:"'+q(artist)+'"',limit:'5'});
   const tn=recNorm(t),an=recNorm(artist);
