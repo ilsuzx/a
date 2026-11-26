@@ -635,8 +635,9 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
   <div class="head"><h1>음악</h1><div style="display:flex;gap:8px"><button class="btn secondary" id="import-pl">플리 가져오기</button><button class="btn" id="add-song"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>음악 추가</button></div></div>
   <div class="toolbar"><input class="search" id="song-search" placeholder="곡명 또는 아티스트 검색"><div class="seg" id="song-scope" role="group" aria-label="검색 기준"><button type="button" data-scope="all" class="on">전체</button><button type="button" data-scope="title">곡명</button><button type="button" data-scope="artist">아티스트명</button></div></div>
   <div class="fbar"><select id="genre-filter"></select><select id="artist-filter"></select><select id="year-filter"></select><select id="song-sort"><option value="new">최근 추가순</option><option value="title">제목순</option><option value="artist">아티스트순</option><option value="year">연도순</option></select><button type="button" class="btn ghost small" id="filter-reset" hidden>초기화</button></div>
-  <div class="count" id="song-count"></div>
+  <div class="count" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span id="song-count"></span><div class="seg" id="song-size" role="group" aria-label="한 번에 보기"><button type="button" data-size="10">10곡</button><button type="button" data-size="20">20곡</button><button type="button" data-size="30">30곡</button></div></div>
   <div class="song-list" id="song-list"></div>
+  <div class="rec-pager" id="song-pager" style="display:none"><button type="button" class="btn secondary small" data-sp="-1" aria-label="이전 페이지">‹</button><span></span><button type="button" class="btn secondary small" data-sp="1" aria-label="다음 페이지">›</button></div>
 </section>
 
 <section class="page" id="page-albums">
@@ -1070,6 +1071,7 @@ document.body.insertAdjacentHTML('beforeend','<div class="modal-backdrop" id="hi
 })();
 
 let songScope='all';
+let songPage=0,songSig='',songSize=(()=>{try{const v=+localStorage.getItem('aftertone_songsize');return [10,20,30].includes(v)?v:10}catch(e){return 10}})();
 function renderSongs(){
   const sn=x=>String(x||'').toLowerCase().replace(/[\s.,'’"“”\-_!?()\[\]]/g,''),q=sn($('#song-search').value),sc=songScope;
   document.querySelectorAll('#song-scope button').forEach(b=>b.classList.toggle('on',b.dataset.scope===sc));
@@ -1085,8 +1087,14 @@ function renderSongs(){
   const so=$('#song-sort').value||'new',tc=(a,b)=>String(a).localeCompare(String(b),'ko');
   if(so==='title')list.sort((a,b)=>tc(a.title,b.title));else if(so==='artist')list.sort((a,b)=>tc(a.artist,b.artist)||tc(a.title,b.title));
   else if(so==='year')list.sort((a,b)=>(+b.year||0)-(+a.year||0));
+  // 검색·필터·정렬이 바뀌면 첫 페이지로, 지워서 페이지가 줄면 마지막 페이지로
+  const sig=[q,sc,cur.genre,cur.artist,cur.year,so].join('|');if(sig!==songSig){songSig=sig;songPage=0}
+  const pages=Math.max(1,Math.ceil(list.length/songSize));songPage=Math.min(Math.max(0,songPage),pages-1);
+  const pageList=list.slice(songPage*songSize,(songPage+1)*songSize);
   $('#song-count').textContent=`${list.length} / ${songs.length}곡`;
-  $('#song-list').innerHTML=list.map(songRow).join('')||(songs.length
+  document.querySelectorAll('#song-size button').forEach(b=>b.classList.toggle('on',+b.dataset.size===songSize));
+  {const pg=$('#song-pager');if(pg){pg.style.display=pages>1?'flex':'none';pg.querySelector('span').textContent=`${songPage+1} / ${pages}`;pg.querySelector('[data-sp="-1"]').disabled=songPage<=0;pg.querySelector('[data-sp="1"]').disabled=songPage>=pages-1}}
+  $('#song-list').innerHTML=pageList.map(songRow).join('')||(songs.length
     ?`<div class="empty">${I.note}<b>조건에 맞는 음악이 없어요</b>검색어나 필터를 바꿔 보세요.<button type="button" class="btn secondary small" data-empty="reset">필터 초기화</button></div>`
     :`<div class="empty">${I.note}<b>음악이 없어요</b>좋아하는 음악을 하나씩 모아 보세요.<button type="button" class="btn" data-empty="add">${I.plus}음악 추가</button></div>`);
   // 필터 칩 표시를 맞추고, '초기화'는 걸려 있는 조건이 있을 때만 보여줘요
@@ -1123,6 +1131,8 @@ function render(){ // 보이는 페이지만 다시 그림 (다른 페이지는 
   else if(p==='page-taste'){renderTaste();renderCharts()}
   else if(p==='page-about')renderSkipped();
 }
+$('#song-size').addEventListener('click',e=>{const b=e.target.closest('[data-size]');if(!b)return;songSize=+b.dataset.size;songPage=0;try{localStorage.setItem('aftertone_songsize',songSize)}catch(_){}renderSongs()});
+$('#song-pager').addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b||b.disabled)return;songPage+=+b.dataset.sp;renderSongs();$('#song-count').scrollIntoView({behavior:'smooth',block:'start'})});
 $('#song-search').addEventListener('input',renderSongs);document.querySelectorAll('#song-scope button').forEach(b=>b.addEventListener('click',()=>{songScope=b.dataset.scope;renderSongs()}));$('#genre-filter').addEventListener('change',renderSongs);$('#album-search').addEventListener('input',renderAlbums);$('#album-sort').addEventListener('change',renderAlbums);
 
 
@@ -3822,6 +3832,8 @@ show(null);
 #page-cf .block>.head{justify-content:flex-end}
 /* 세부 장르 곡 목록 창: 장르 태그·재생·비슷한 곡·수정·삭제 버튼 숨김 */
 #xd-list .song-tag,#xd-list .row-actions{display:none}
+#page-songs .count{scroll-margin-top:90px}
+#song-pager{display:flex;margin-top:16px}
 .sub-row{display:flex;gap:56px;align-items:flex-start;flex-wrap:wrap}
 #top-artists{flex:0 1 300px;min-width:220px}
 #top-artists .legend{min-width:0}
