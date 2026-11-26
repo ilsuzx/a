@@ -3866,5 +3866,47 @@ make('autopl',$('#pl-block'),'자동 플레이리스트','내 곡을 비슷한 �
 ['gpl','wcup','autopl'].forEach(k=>{const b=$('#'+k+'-back');if(b){const f=b.onclick;b.onclick=()=>{try{stopPlayer()}catch(e){}f()}}});
 })();
 </script>
+<style>
+/* 설정 탭: 차단한 곡 · 제외된 곡 카드와 펼친 페이지 */
+#page-blocked h1,#page-skipped h1{margin-bottom:16px}
+#page-blocked h1 small,#page-skipped h1 small{font-size:15px;font-weight:400;color:var(--muted);margin-left:10px}
+#page-blocked .backup,#page-skipped .backup{margin-top:0;padding-top:0;border-top:0}
+#blocked-box>div:first-child>h2,#skipped-box>div:first-child>h2{display:none}
+#blocked-box>div:first-child,#skipped-box>div:first-child{justify-content:flex-end!important}
+#blocked-toggle,#skipped-toggle{display:none}
+</style>
+<script>
+(()=>{
+const about=document.getElementById('page-about'),bb=$('#blocked-box'),sb=$('#skipped-box');
+if(!about||!bb||!sb)return;
+const tab=()=>document.querySelector('.nav [data-page="about"]');
+const card=(id,title,desc)=>`<button type="button" class="rec-card" id="${id}-open"><span><strong>${title}</strong><small>${desc}</small></span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>`;
+bb.insertAdjacentHTML('beforebegin','<div id="set-cards" style="margin-top:24px">'
+  +card('blk','추천 차단한 곡','추천 목록에서 차단한 곡을 확인하고 해제해요')
+  +card('skp','제외된 곡','미리듣기가 없어 빠진 곡을 다시 검색해요')+'</div>');
+const wrap=document.querySelector('.wrap');
+wrap.insertAdjacentHTML('beforeend',
+  '<section class="page" id="page-blocked"><button type="button" class="link" id="blk-back" style="margin-bottom:12px">‹ 설정</button><h1>추천 차단한 곡<small id="blk-n"></small></h1></section>'
+ +'<section class="page" id="page-skipped"><button type="button" class="link" id="skp-back" style="margin-bottom:12px">‹ 설정</button><h1>제외된 곡<small id="skp-n"></small></h1></section>');
+$('#page-blocked').append(bb);$('#page-skipped').append(sb);
+$('#blocked-body').style.display='';$('#skipped-body').style.display='';
+const open=(page)=>{go(page);tab().classList.add('active')};
+$('#blk-open').onclick=()=>open('blocked');
+$('#skp-open').onclick=()=>open('skipped');
+$('#blk-back').onclick=()=>go('about');
+$('#skp-back').onclick=()=>go('about');
+const _r=render;
+render=function(){
+  _r();
+  const p=(document.querySelector('.page.active')||{}).id;
+  if(p==='page-skipped')renderSkipped();
+  const bn=$('#blk-n'),sn=$('#skp-n');
+  if(bn)bn.textContent=blocked.length?blocked.length+'곡':'';
+  if(sn)sn.textContent=skipped.length?skipped.length+'곡':'';
+  const bc=$('#blocked-clear');if(bc)bc.style.display=blocked.length?'':'none';
+};
+render();
+})();
+</script>
 </body>
 </html>
