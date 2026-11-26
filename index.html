@@ -1217,7 +1217,7 @@ async function subRun(){
       const [k,name]=todo[i++];
       try{
         let tags=await subArtistTags(name);
-        if(tags&&!tags.length&&/[,&\/]|feat|ft\./i.test(name)){const f=name.split(/\s*(?:,|\/|feat\.?|ft\.?)\s*/i)[0];if(f&&f!==name)tags=await subArtistTags(f)}
+        if(tags&&!tags.tags.length&&/[,&\/]|feat|ft\./i.test(name)){const f=name.split(/\s*(?:,|\/|feat\.?|ft\.?)\s*/i)[0];if(f&&f!==name)tags=await subArtistTags(f)}
        if(tags)c[k]={t:Date.now(),tags:tags.tags,mb:tags.mb};else fail++;
       }catch(e){fail++}
       done++;upd();if(done%6===0)subPaint();
@@ -2721,8 +2721,6 @@ async function mbArtist(name){
   if(!d)return null; // 네트워크 실패는 캐시하지 않아요
   const hit=(d.artists||[]).find(a=>(a.score||0)>=90&&mbNames(a).some(n=>recNorm(n)===k));
   const out=hit?{id:hit.id,name:hit.name,genre:pickGenre(hit.tags||[])}:null;
-  artCache.set(k,out);return out;
-}
   artCache.set(k,out);return out;
 }
 window.mbArtistTags=async name=>{
