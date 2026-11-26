@@ -3659,5 +3659,34 @@ show(null);
   renderSongs();
 })();
 </script>
+<style>
+/* 취향 기반 추천: 카드 → 펼친 페이지 */
+.rec-card{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;border:0;background:var(--soft);color:var(--fg);border-radius:12px;padding:20px}
+.rec-card strong{display:block;font-size:17px}.rec-card small{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+.rec-card .ic{width:22px;height:22px}
+#page-rec h1,#page-cf h1{margin-bottom:16px}
+.rec-card{margin-bottom:12px}
+#page-cf .block>.head>h2{display:none}
+#page-cf .block>.head{justify-content:flex-end}
+#page-rec .block>.head>h2,#page-rec #rec-fold{display:none}
+#page-rec .block>.head{justify-content:flex-end}
+</style>
+<script>
+(()=>{
+// 두 추천을 '세부 장르' 아래 카드로 두고, 누르면 각각의 페이지가 펼쳐져요
+const taste=$('#page-taste'),tab=()=>document.querySelector('.nav [data-page="taste"]');
+let last=taste;
+const make=(key,block,title,desc,onOpen)=>{
+  if(!block)return;
+  taste.insertAdjacentHTML('beforeend',`<button type="button" class="rec-card" id="${key}-open"><span><strong>${title}</strong><small>${desc}</small></span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>`);
+  last.insertAdjacentHTML('afterend',`<section class="page" id="page-${key}"><button type="button" class="link" id="${key}-back" style="margin-bottom:12px">‹ 취향</button><h1>${title}</h1></section>`);
+  last=$('#page-'+key);last.append(block);
+  $('#'+key+'-open').onclick=()=>{go(key);tab().classList.add('active');if(onOpen)onOpen()};
+  $('#'+key+'-back').onclick=()=>{recAudio.pause();go('taste')};
+};
+make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 노래를 골라 드려요',()=>{$('#rec-body').style.display=''});
+make('cf',$('#cf-block'),'다른 사용자들이 좋아한 곡','취향이 비슷한 사용자들이 담은 곡을 볼 수 있어요');
+})();
+</script>
 </body>
 </html>
