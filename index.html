@@ -715,7 +715,7 @@ const I={
  play:_s('<path d="M7 4.8v14.4a.6.6 0 0 0 .9.5l11.4-7.2a.6.6 0 0 0 0-1L7.9 4.3a.6.6 0 0 0-.9.5z"/>'),
  pause:_s('<path d="M8.5 5v14M15.5 5v14"/>'),
  stop:_s('<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>'),
- sim:_s('<path d="M3.5 9q2.25-3 4.5 0t4.5 0 4.5 0 3.5 0M3.5 15q2.25-3 4.5 0t4.5 0 4.5 0 3.5 0"/>'),
+ sim:_s('<path d="M3.5 9q2.125-3 4.25 0t4.25 0 4.25 0 4.25 0M3.5 15q2.125-3 4.25 0t4.25 0 4.25 0 4.25 0"/>'),
  edit:_s('<path d="M5 20h3L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="m14.5 7.5 3 3"/>'),
  x:_s('<path d="M6 6l12 12M18 6 6 18"/>'),
  plus:_s('<path d="M12 5v14M5 12h14"/>'),
@@ -815,7 +815,7 @@ function removeSong(id){const i=songs.findIndex(s=>s.id===id);if(i<0)return;cons
   save();render();
   undoToast(rm?'곡과 빈 앨범을 삭제했어요.':'곡을 삭제했어요.',()=>{songs.splice(Math.min(i,songs.length),0,s);if(rm)albums.splice(Math.min(rm.i,albums.length),0,rm.a);save();render()})}
 function metaLine(m){if(!m)return '';const p=[];if(m.bpm)p.push('BPM '+m.bpm);if(m.camelot)p.push(m.camelot);if(m.energy!=null)p.push('에너지 '+Math.round(m.energy*100));if(m.happiness!=null)p.push('행복도 '+Math.round(m.happiness*100));return p.length?`<em class="note">${p.join(' · ')}</em>`:''}
-const songRow=s=>`<div class="song-row"><div class="mini-cover">${cover(s.cover,s.album||s.title)}</div><div class="song-meta"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}${s.album?' · '+esc(s.album):''}</span>${s.note?`<em class="note" title="${esc(s.note)}">“${esc(s.note)}”</em>`:''}${metaLine(s.meta)}</div>${s.genre?`<span class="song-tag">${esc(s.genre)}</span>`:''}<div class="row-actions">${s.preview?`<button class="icon-btn play" title="미리듣기" aria-label="미리듣기" onclick="playSong('${s.id}')">${playingId===s.id&&!player.paused?I.pause:I.play}</button>`:''}<button class="icon-btn" title="비슷한 곡" aria-label="비슷한 곡" onclick="showSimilar('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9q2.25-3 4.5 0t4.5 0 4.5 0 3.5 0M3.5 15q2.25-3 4.5 0t4.5 0 4.5 0 3.5 0"/></svg></button><button class="icon-btn" title="수정" onclick="editSong('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h3L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="m14.5 7.5 3 3"/></svg></button><button class="icon-btn" title="삭제" onclick="removeSong('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>`;
+const songRow=s=>`<div class="song-row"><div class="mini-cover">${cover(s.cover,s.album||s.title)}</div><div class="song-meta"><strong>${esc(s.title)}</strong><span>${esc(s.artist)}${s.album?' · '+esc(s.album):''}</span>${s.note?`<em class="note" title="${esc(s.note)}">“${esc(s.note)}”</em>`:''}${metaLine(s.meta)}</div>${s.genre?`<span class="song-tag">${esc(s.genre)}</span>`:''}<div class="row-actions">${s.preview?`<button class="icon-btn play" title="미리듣기" aria-label="미리듣기" onclick="playSong('${s.id}')">${playingId===s.id&&!player.paused?I.pause:I.play}</button>`:''}<button class="icon-btn" title="비슷한 곡" aria-label="비슷한 곡" onclick="showSimilar('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9q2.125-3 4.25 0t4.25 0 4.25 0 4.25 0M3.5 15q2.125-3 4.25 0t4.25 0 4.25 0 4.25 0"/></svg></button><button class="icon-btn" title="수정" onclick="editSong('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h3L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="m14.5 7.5 3 3"/></svg></button><button class="icon-btn" title="삭제" onclick="removeSong('${s.id}')"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>`;
 var albumSelMode=false,albumSel=new Set();
 const albumCard=a=>`<div class="album-card${albumSelMode&&albumSel.has(a.id)?' picked':''}" data-id="${a.id}" onclick="albumTap(this,'${a.id}')"><div class="cover">${cover(a.cover,a.title)}</div><div class="album-info"><strong>${esc(a.title)}</strong><span>${esc(a.artist)}${a.year?' · '+esc(a.year):''}</span></div><i class="album-check"></i></div>`;
 // 앨범: 누르면 수정 창이 뜨지 않아요. 마우스를 올리면(터치는 한 번 누르면) 정보가 보이고, '선택' 모드에서 여러 앨범을 골라 삭제해요
@@ -1511,7 +1511,7 @@ async function similarViaArtists(artist,n){
 }
 async function getSimilar(artist,track,limit){
   let r=[];try{r=await similarTracks(artist,track,limit)}catch(e){}
-  if(r.length<3){try{r=[...r,...await similarViaArtists(artist)]}catch(e){}}
+  if(r.length<3){try{r=[...r,...(await similarViaArtists(artist)).map(c=>({...c,match:(c.match||0.3)*0.5}))]}catch(e){}}
   return r;
 }
 const recAudio=$('#rec-audio');let recPlaying=null;
@@ -1808,6 +1808,7 @@ async function recommend(custom){
       (await getSimilar(sd.artist,sd.title)).forEach(c=>{
         const k=skey(c);if(lib.has(k))return;
         const e=cand.get(k)||{title:c.title,artist:c.artist,sum:0,hits:0,seeds:[]};
+        if(e.seeds.includes(sd.title))return;
         e.sum+=(c.match||0.3);e.hits++;e.seeds.push(sd.title);cand.set(k,e);
       });
     }catch(e){}
@@ -1827,7 +1828,8 @@ async function recommend(custom){
   const sorted=list.sort((a,b)=>b.score-a.score);
   const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
   let pool=fresh; // 이미 보여준 곡은 다시 넣지 않아요
-  const top=pool.slice(0,45);
+  const per=new Map(); // 한 아티스트가 목록을 차지하지 않게 최대 2곡
+  const top=pool.filter(c=>{const a=recNorm(c.artist)||c.artist,n=per.get(a)||0;per.set(a,n+1);return n<2}).slice(0,45);
   if(!top.length)return [];
   // 3) 후보의 태그가 합친 느낌과 얼마나 가까운지로 한 번 더 걸러서 순서를 정해요
   const noFeel=topTags.length<2;
