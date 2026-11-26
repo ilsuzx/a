@@ -627,7 +627,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 <header>
   <div class="brand">AFTERTONE</div>
   <nav class="nav">
-    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="playlist">플리</button><button data-page="about">설정</button>
+    <button class="active" data-page="songs">노래</button><button data-page="albums">앨범</button><button data-page="taste">취향</button><button data-page="about">설정</button>
   </nav>
 </header>
 
@@ -3716,6 +3716,9 @@ show(null);
 .rec-card{margin-bottom:12px}
 #page-cf .block>.head>h2{display:none}
 #page-cf .block>.head{justify-content:flex-end}
+#page-wcup h1,#page-autopl h1{margin-bottom:16px}
+#page-wcup .block>.head>h2,#page-autopl .block>.head>h2{display:none}
+#page-wcup .block>.head,#page-autopl .block>.head{justify-content:flex-end}
 #page-rec .block>.head>h2,#page-rec #rec-fold{display:none}
 #page-rec .block>.head{justify-content:flex-end}
 </style>
@@ -3734,6 +3737,12 @@ const make=(key,block,title,desc,onOpen)=>{
 };
 make('rec',$('#rec-body').closest('.block'),'취향 기반 추천','저장한 곡의 분위기로 새 노래를 골라 드려요',()=>{$('#rec-body').style.display=''});
 make('cf',$('#cf-block'),'다른 사용자들이 좋아한 곡','취향이 비슷한 사용자들이 담은 곡을 볼 수 있어요');
+make('wcup',$('#upl-block'),'플리 월드컵','대표곡을 고르고 비슷한 곡을 2곡씩 비교하며 플리를 만들어요');
+make('autopl',$('#pl-block'),'자동 플레이리스트','내 곡을 비슷한 것끼리 묶어 플레이리스트를 만들어요');
+// 블록을 모두 옮겼으니 빈 '플리' 페이지는 지워요
+{const old=document.getElementById('page-playlist');if(old)old.remove()}
+// 플리 페이지에서 뒤로 가면 재생 중인 곡도 멈춰요
+['wcup','autopl'].forEach(k=>{const b=$('#'+k+'-back');if(b){const f=b.onclick;b.onclick=()=>{try{stopPlayer()}catch(e){}f()}}});
 })();
 </script>
 </body>
