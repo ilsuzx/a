@@ -1189,6 +1189,7 @@ function subCompute(){
 function subPaint(){
   const box=document.getElementById('sub-donut'),note=document.getElementById('sub-note');if(!box)return;
   if(!songs.length){box.innerHTML='<div class="empty">노래를 추가하면 세부 장르가 나와요.</div>';if(note)note.textContent='';return}
+  if(subBusy){box.innerHTML='';return}
   const r=subCompute();subSongTags=r.st;
   if(!r.used){box.innerHTML=subBusy?'':'<div class="empty">아직 세부 장르 정보가 없어요. 이 페이지를 열어 두면 불러와요.</div>';return}
   const all=[...r.agg.values()].sort((a,b)=>b.v-a.v);
@@ -1208,7 +1209,7 @@ async function subRun(){
   const c=subLoad(),now=Date.now();
   const todo=[...new Map(songs.map(s=>[subAk(s.artist),s.artist])).entries()].filter(([k])=>!c[k]||now-(c[k].t||0)>SUB_TTL);
   if(!todo.length)return;
-  subBusy=true;let i=0,done=0,fail=0;
+  subBusy=true;subPaint();let i=0,done=0,fail=0;
   const note=document.getElementById('sub-note');
   const upd=()=>{if(note)note.textContent=`세부 장르를 분석하는 중이에요… ${done}/${todo.length} (아티스트 기준)`};
   upd();
