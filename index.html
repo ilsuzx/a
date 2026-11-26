@@ -684,7 +684,7 @@ html[data-theme="dark"] .api-result,html[data-theme="dark"] .meta-cell,html[data
 <div class="modal-actions"><button type="button" class="btn secondary" id="queue-skip" style="display:none">건너뛰기</button><button type="button" class="btn secondary" data-close>취소</button><button class="btn" type="submit">저장</button></div></form></div></div>
 
 <div class="modal-backdrop" id="album-modal"><div class="modal"><div class="modal-head"><h2 id="album-modal-title">앨범 추가</h2><button class="close" data-close><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><form id="album-form"><input type="hidden" id="album-id">
-<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'은 앨범 정보와 커버만 입력하고, '통째로 추가'는 수록곡 전체를 노래로 한 번에 추가해요.</small></div>
+<div class="api-search"><div class="api-search-head"><strong>앨범 검색</strong><small>'선택'을 누르면 수록곡 전체가 노래로 한 번에 추가돼요.</small></div>
 <div class="api-search-line"><input id="api-album-query" placeholder="앨범명 또는 아티스트"><button type="button" class="btn small" id="api-album-search">검색</button></div>
 <div class="api-results" id="api-album-results"></div></div>
 <div class="form-grid">
@@ -801,7 +801,7 @@ document.addEventListener('play',e=>{if(e.target.tagName==='AUDIO')document.quer
 
 const resetSearch=(sel,msg)=>{$(sel).innerHTML=`<div class="api-hint intro">${msg}</div>`};
 $('#add-song').onclick=()=>{$('#song-form').reset();$('#song-id').value='';$('#f-preview').value='';$('#api-song-query').value='';setSongScope('all');resetSearch('#api-song-results','검색 결과를 선택하면 곡 정보와 앨범 커버가 자동으로 입력됩니다.');$('#song-modal-title').textContent='노래 추가';openModal('song-modal')};
-$('#add-album').onclick=()=>{$('#album-form').reset();$('#album-id').value='';$('#api-album-query').value='';resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 자동으로 입력됩니다.');$('#album-delete').style.display='none';$('#album-tracks').innerHTML='';setIntroUI({});$('#album-modal-title').textContent='앨범 추가';openModal('album-modal')};
+$('#add-album').onclick=()=>{$('#album-form').reset();$('#album-id').value='';$('#api-album-query').value='';resetSearch('#api-album-results','검색 결과에서 앨범을 선택해 주세요.');$('#album-delete').style.display='none';$('#album-tracks').innerHTML='';setIntroUI({});$('#album-modal-title').textContent='앨범 추가';openModal('album-modal')};
 function editSong(id){const s=songs.find(x=>x.id===id);if(!s)return;$('#song-form').reset();$('#song-id').value=id;$('#f-preview').value=s.preview||'';['title','artist','album','year','genre','sound','cover'].forEach(k=>$('#f-'+k).value=s[k]||'');resetSearch('#api-song-results','검색 결과를 선택하면 정보가 다시 입력됩니다.');$('#song-modal-title').textContent='노래 수정';openModal('song-modal')}
 function editAlbum(id){const a=albums.find(x=>x.id===id);if(!a)return;$('#album-form').reset();$('#album-id').value=id;['title','artist','year','genre','cover','note'].forEach(k=>$('#a-'+k).value=a[k]||'');resetSearch('#api-album-results','검색 결과에서 앨범을 선택하면 정보가 다시 입력됩니다.');$('#album-delete').style.display='';setIntroUI(a);const tr=songs.filter(s=>s.album&&s.album.toLowerCase()===a.title.toLowerCase()&&s.artist.toLowerCase()===a.artist.toLowerCase());$('#album-tracks').innerHTML=tr.length?`<label>수록곡 (${tr.length})</label>`+tr.map(s=>`<div class="trk"><span>${esc(s.title)}</span>${s.preview?`<button type="button" class="icon-btn" onclick="playSong('${s.id}')">${I.play}</button>`:''}</div>`).join(''):'';$('#album-modal-title').textContent='앨범 수정';openModal('album-modal')}
 $('#song-form').onsubmit=e=>{e.preventDefault();const id=$('#song-id').value;
@@ -1399,7 +1399,7 @@ function showApiResults(container,items,type){
     const year=(x.releaseDate||'').slice(0,4),genre=x.primaryGenreName||'';
     const preview=type==='song'&&x.previewUrl?`<button type="button" class="icon-btn" data-mplay="${i}" title="미리듣기" aria-label="미리듣기" style="color:var(--fg)">${I.play}</button>`:'';
     const thumb=(x.artworkUrl100||x.artworkUrl60||'');
-    return `<div class="api-result"><img src="${esc(thumb)}" alt="" onerror="this.style.visibility='hidden'"><div class="api-result-info"><strong>${esc(title||'제목 정보 없음')}</strong><span>${esc(artist)}${year?' · '+year:''}${genre?' · '+esc(genre):''}</span></div>${preview}<div class="api-result-btns"><button type="button" class="btn small" data-choose="${i}">선택</button>${type==='album'?`<button type="button" class="btn small secondary" data-whole="${i}">통째로 추가</button>`:''}</div></div>`;
+    return `<div class="api-result"><img src="${esc(thumb)}" alt="" onerror="this.style.visibility='hidden'"><div class="api-result-info"><strong>${esc(title||'제목 정보 없음')}</strong><span>${esc(artist)}${year?' · '+year:''}${genre?' · '+esc(genre):''}</span></div>${preview}<div class="api-result-btns"><button type="button" class="btn small" ${type==='album'&&!(container.id==='api-album-results'&&$('#album-id').value)?'data-whole':'data-choose'}="${i}">선택</button></div></div>`;
   }).join('');
   container.querySelectorAll('[data-mplay]').forEach(btn=>{
     const x=items[Number(btn.dataset.mplay)];btn._src=x&&x.previewUrl||'';
@@ -2210,15 +2210,16 @@ async function importWholeAlbum(x,btn){
   if(!tracks.length){toast('수록곡을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');return}
   const keys=new Set(songs.map(skey)),add=[];
   tracks.forEach(t=>{if(t.title&&!keys.has(skey(t))){keys.add(skey(t));add.push(t)}});
-  if(!add.length){toast('이미 모두 등록된 앨범이에요.');return}
-  if(!confirm(`「${info.title}」 ${tracks.length}곡 중 ${add.length}곡을 추가할까요?`+(add.length<tracks.length?`\n(이미 있는 ${tracks.length-add.length}곡은 건너뜀)`:'')))return;
+  const hasAlbum=albums.some(a=>a.title.toLowerCase()===info.title.toLowerCase()&&a.artist.toLowerCase()===info.artist.toLowerCase());
+  if(!add.length&&(hasAlbum||!info.title)){toast('이미 모두 등록된 앨범이에요.');return}
+  if(add.length&&!confirm(`「${info.title}」 ${tracks.length}곡 중 ${add.length}곡을 추가할까요?`+(add.length<tracks.length?`\n(이미 있는 ${tracks.length-add.length}곡은 건너뜀)`:'')))return;
   const base=Date.now();
   const fresh=add.map((t,i)=>({id:uid(),title:t.title,artist:t.artist,album:info.title,year:info.year,genre:info.genre,sound:'',cover:info.cover,note:'',preview:t.preview,created:base-i}));
   songs=[...fresh,...songs];
   if(info.title&&!albums.some(a=>a.title.toLowerCase()===info.title.toLowerCase()&&a.artist.toLowerCase()===info.artist.toLowerCase()))
-    albums.unshift({id:uid(),title:info.title,artist:info.artist,year:info.year,genre:info.genre,cover:info.cover,note:'',created:base});
+    albums.unshift({id:uid(),title:info.title,artist:info.artist,year:info.year,genre:info.genre,cover:info.cover,note:'',dzId:x._albumId?String(x._albumId):'',created:base});
   save();closeModals();render();
-  toast(`「${info.title}」 ${fresh.length}곡을 추가했어요.`);
+  toast(fresh.length?`「${info.title}」 ${fresh.length}곡을 추가했어요.`:`「${info.title}」 앨범을 추가했어요.`);
 }
 // ===== 추천 접기 / 초기화 =====
 function recExpand(){$('#rec-body').style.display='';$('#rec-fold').textContent='접기'}
@@ -2440,7 +2441,7 @@ render();
 const seg=$('#api-song-scope');
 seg.insertAdjacentHTML('beforeend','<button type="button" data-sscope="album">앨범</button>');
 const albumBtn=seg.querySelector('[data-sscope="album"]');
-const HINT='앨범을 검색한 뒤 \'통째로 추가\'를 누르면 수록곡 전체가 한 번에 추가돼요. 이미 있는 곡은 건너뛰어요.';
+const HINT='앨범을 검색한 뒤 \'선택\'을 누르면 수록곡 전체가 한 번에 추가돼요. 이미 있는 곡은 건너뛰어요.';
 albumBtn.addEventListener('click',()=>{
   setSongScope('album');
   $('#api-song-query').placeholder='앨범명 또는 아티스트로 검색';
@@ -2456,7 +2457,6 @@ function searchAlbumInSongModal(){
     btn.disabled=false;btn.textContent='검색';
     if(data.error){box.innerHTML='<div class="api-hint">음악 검색 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.</div>';return}
     showApiResults(box,data.results||[],'album');
-    box.querySelectorAll('[data-choose]').forEach(b=>b.remove()); // 이 창에서는 '통째로 추가'만 사용
   });
 }
 // 기존 검색 버튼/Enter가 호출하는 함수를 감싸서, 앨범 모드일 때만 앨범 검색으로 보냄
@@ -2651,7 +2651,7 @@ window.fetchIntroUI=async function(auto){
   if(r.info)$('#a-info').value=r.info;
   if(r.dzId)$('#a-dz').value=r.dzId;
   drawIntroSrc();
-  toast(r.intro?'앨범 소개를 불러왔어요.':r.info?'소개 글은 못 찾았고 기본 정보만 채웠어요.':'앨범 정보를 찾지 못했어요.');
+  if(!auto)toast(r.intro?'앨범 소개를 불러왔어요.':r.info?'소개 글은 못 찾았고 기본 정보만 채웠어요.':'앨범 정보를 찾지 못했어요.');
 };
 $('#intro-fetch').onclick=()=>fetchIntroUI(false);
 
