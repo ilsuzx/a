@@ -1476,23 +1476,7 @@ async function lfm(method,params){
     return j;
   }catch(e){return new Promise(res=>jsonp(ep,res))}
 }
-async function autoTags(force){
-  return; // 사운드 자동 채우기는 쓰지 않아요
-  const title=$('#f-title').value.trim(),artist=$('#f-artist').value.trim();
-  if(!title||!artist){if(force)toast('곡명과 아티스트를 먼저 입력해 주세요.');return}
-  try{
-    const arr=v=>Array.isArray(v)?v:(v?[v]:[]);
-    const t=await lfm('track.getTopTags',{artist,track:title});
-    let tags=arr(t&&t.toptags&&t.toptags.tag);
-    if(tags.length<8){const a=await lfm('artist.getTopTags',{artist});tags=[...tags,...arr(a&&a.toptags&&a.toptags.tag)]}
-    const pick=map=>{const out=[];for(const x of tags){const k=map[String(x.name||'').toLowerCase().trim()];if(k&&!out.includes(k))out.push(k);if(out.length>=3)break}return out};
-    const sounds=pick(SOUND_MAP);
-    let filled=0;
-    if(sounds.length&&(force||!$('#f-sound').value.trim())){$('#f-sound').value=sounds.join(', ');filled++}
-    if(filled)toast('사운드를 자동으로 채웠어요. 필요하면 수정해 주세요.');
-    else if(force)toast(tags.length?'매칭되는 사운드 태그가 없어요. 직접 입력해 주세요.':'이 곡의 태그 정보가 없어요. 직접 입력해 주세요.');
-  }catch(e){if(force)toast('태그를 불러오지 못했어요.')}
-}
+async function autoTags(force){} // 사운드 자동 채우기는 쓰지 않아요 (아래에서 추가 정보 채우기를 덧붙여요)
 // ===== 비슷한 곡 / 취향 기반 추천 =====
 const arr=v=>Array.isArray(v)?v:(v?[v]:[]);
 async function similarTracks(artist,track,limit){
@@ -1718,56 +1702,11 @@ function fillFromRec(item){
 $('#queue-skip').onclick=()=>{const nx=popQueue();if(nx)fillFromRec(nx);else closeModals()};
 // 최근에 추가한 곡일수록 가중치가 커져요 (최대 2배, 오래된 곡은 0.5배까지 서서히 감소)
 const recW=s=>{const age=Math.max(0,(Date.now()-(Number(s.created)||0))/864e5);return 0.5+1.5*Math.exp(-age/90)};
-function profileVec(list){
-  const v={};
-  (list||songs).forEach(s=>{const w=(list?1:recW(s));[s.sound].forEach(f=>(f||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(t=>v[t]=(v[t]||0)+w))});
-  return v;
-}
-async function candTags(artist,track){
-  const t=await lfm('track.getTopTags',{artist,track});
-  let tags=arr(t&&t.toptags&&t.toptags.tag);
-  if(tags.length<5){const a=await lfm('artist.getTopTags',{artist});tags=[...tags,...arr(a&&a.toptags&&a.toptags.tag)]}
-  const out=new Set();
-  tags.forEach(x=>{const n=String(x.name||'').toLowerCase().trim();if(SOUND_MAP[n])out.add(SOUND_MAP[n])});
-  return [...out];
-}
 const recSeen=new Set((()=>{try{const a=JSON.parse(localStorage.getItem('aftertone_recseen')||'[]');return Array.isArray(a)?a:[]}catch(e){return []}})()); // 이미 보여준 추천곡 (새로고침해도 유지)
 {const _add=recSeen.add.bind(recSeen),_clr=recSeen.clear.bind(recSeen);let tm;
   const persist=()=>{clearTimeout(tm);tm=setTimeout(()=>{try{localStorage.setItem('aftertone_recseen',JSON.stringify([...recSeen].slice(-2000)))}catch(e){}},300)};
   recSeen.add=k=>{_add(k);persist();return recSeen};
   recSeen.clear=()=>{_clr();persist()};}
-async function recommendSeparate(custom){
-  const lib=new Set(songs.map(skey));
-  const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
-  const wshuffle=a=>a.map(x=>[Math.pow(Math.random(),1/recW(x)),x]).sort((p,q)=>q[0]-p[0]).map(x=>x[1]);
-  const seeds=custom||wshuffle(songs).slice(0,8);
-  const cand=new Map();
-  await Promise.all(seeds.map(async sd=>{
-    const list=await getSimilar(sd.artist,sd.title);
-    list.forEach(c=>{const k=skey(c);if(lib.has(k))return;const e=cand.get(k)||{...c,score:0,seeds:[]};e.score+=c.match||0.3;e.seeds.push(sd.title);cand.set(k,e)});
-  }));
-  const sorted=[...cand.values()].sort((a,b)=>b.score-a.score);
-  const fresh=sorted.filter(c=>!recSeen.has(skey(c)));
-  let pool=fresh; // 이미 보여준 곡은 다시 넣지 않아요
-  const top=pool.slice(0,24);
-  if(!top.length)return [];
-  for(let i=0;i<top.length;i+=6){
-    await Promise.all(top.slice(i,i+6).map(async c=>{try{c.tags=await candTags(c.artist,c.title)}catch(e){c.tags=[]}}));
-  }
-  const prof=profileVec(custom),pn=Math.sqrt(Object.values(prof).reduce((a,x)=>a+x*x,0))||1;
-  const maxS=Math.max(...top.map(c=>c.score),0.001);
-  top.forEach(c=>{
-    const shared=c.tags.filter(t=>prof[t]).sort((a,b)=>prof[b]-prof[a]);
-    const dot=shared.reduce((a,t)=>a+prof[t],0),cn=Math.sqrt(c.tags.length)||1;
-    const cos=c.tags.length?dot/(pn*cn):0;
-    c.final=0.55*(c.score/maxS)+0.45*Math.min(1,cos*2.5);
-    c.j=Math.random()*0.12;
-    c.meta='추천 점수 '+Math.round(c.final*100);
-    c.reason='「'+c.seeds[0]+'」와(과) 비슷해요'+(shared.length?' · 취향 일치: '+shared.slice(0,3).join(', '):'');
-  });
-  return top.sort((a,b)=>(b.final+b.j)-(a.final+a.j));
-}
-
 // ===== 전체 느낌을 하나로 합쳐서 추천 =====
 // 곡마다 따로 "비슷한 곡"을 찾지 않고, 고른 곡들의 태그(분위기·장르)를 하나로 합친 뒤
 // 그 합친 느낌에 가까운 곡을 찾아요. 여러 곡에 공통으로 걸리는 태그일수록 더 크게 반영돼요.
@@ -1775,7 +1714,15 @@ let recFilterHook=l=>l; // 이미 등록된 곡 제외(아래쪽 스크립트에
 let recRegHook=()=>false; // 검색으로 확인된 이름(Deezer/Apple 표기)으로도 등록 여부를 한 번 더 확인
 const REC_JUNK=/^(seen live|favou?rites?|favou?rite .*|my .*|love|loved|awesome|good|great|best|beautiful|cool|amazing|albums? i own|under \d+ listeners|spotify|\d{2,4}s?)$/;
 const REC_GENERIC=new Set(['rock','pop','indie','alternative','alternative rock','indie rock','electronic','hip-hop','hip hop','rap','folk','soul','jazz','singer-songwriter','female vocalists','male vocalists','chill','mellow','experimental']);
+// 불러온 태그는 30일 동안 저장해 두고 다시 써요 (최대 600곡)
+const TAG_KEY='aftertone_tagcache',TAG_TTL=30*864e5;
+const tagCache=new Map((()=>{try{const a=JSON.parse(localStorage.getItem(TAG_KEY)||'[]');return Array.isArray(a)?a.filter(e=>Date.now()-e[1].at<TAG_TTL):[]}catch(e){return []}})());
+let tagSaveTm;
+const saveTags=()=>{clearTimeout(tagSaveTm);tagSaveTm=setTimeout(()=>{try{localStorage.setItem(TAG_KEY,JSON.stringify([...tagCache].slice(-600)))}catch(e){try{localStorage.removeItem(TAG_KEY)}catch(_){}}},500)};
 async function fullTags(artist,track){
+  const key=String(artist).toLowerCase().trim()+'|'+String(track).toLowerCase().trim();
+  const hit=tagCache.get(key);
+  if(hit&&Date.now()-hit.at<TAG_TTL)return new Map(hit.tags);
   const out=new Map();
   const add=(list,k)=>{
     const L=arr(list),mx=Math.max(1,...L.map(x=>Number(x.count)||0));
@@ -1786,8 +1733,12 @@ async function fullTags(artist,track){
       if(w>0)out.set(n,Math.max(out.get(n)||0,w));
     });
   };
-  try{const t=await lfm('track.getTopTags',{artist,track});add(t&&t.toptags&&t.toptags.tag,1)}catch(e){}
-  try{const a=await lfm('artist.getTopTags',{artist});add(a&&a.toptags&&a.toptags.tag,0.7)}catch(e){}
+  // 곡 태그와 아티스트 태그를 동시에 불러와요
+  const [t,a]=await Promise.all([lfm('track.getTopTags',{artist,track}).catch(()=>null),lfm('artist.getTopTags',{artist}).catch(()=>null)]);
+  add(t&&t.toptags&&t.toptags.tag,1);
+  add(a&&a.toptags&&a.toptags.tag,0.7);
+  // 두 요청이 모두 성공했고 태그가 있을 때만 저장해요
+  if(t&&t.toptags&&a&&a.toptags&&out.size){tagCache.set(key,{at:Date.now(),tags:[...out]});saveTags()}
   return out;
 }
 const unitVec=m=>{const n=Math.sqrt([...m.values()].reduce((a,x)=>a+x*x,0))||1;const o=new Map();m.forEach((v,k)=>o.set(k,v/n));return o};
